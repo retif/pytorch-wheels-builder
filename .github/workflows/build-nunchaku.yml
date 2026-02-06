@@ -140,7 +140,7 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: nunchaku-v${{ inputs.nunchaku_version || '1.0.2' }}-py313-cu130
+          tag_name: nunchaku-v${{ inputs.nunchaku_version || '1.0.2' }}-py313-cu130-torch${{ inputs.pytorch_version || '2.10.0' }}
           name: Nunchaku Wheel for Python ${{ env.PYTHON_VERSION }} + CUDA ${{ env.CUDA_VERSION }} + PyTorch ${{ inputs.pytorch_version || '2.10.0' }}
           body: |
             Built with:
@@ -158,7 +158,7 @@ jobs:
             Or directly from this release:
 
             ```bash
-            pip install https://github.com/${{ github.repository }}/releases/download/nunchaku-v${{ inputs.nunchaku_version || '1.0.2' }}-py313-cu130/${{ steps.wheel_name.outputs.wheel_name }}
+            pip install https://github.com/${{ github.repository }}/releases/download/nunchaku-v${{ inputs.nunchaku_version || '1.0.2' }}-py313-cu130-torch${{ inputs.pytorch_version || '2.10.0' }}/${{ steps.wheel_name.outputs.wheel_name }}
             ```
           files: ${{ steps.wheel_name.outputs.wheel_path }}
           draft: false
