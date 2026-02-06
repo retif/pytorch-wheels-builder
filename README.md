@@ -58,11 +58,15 @@ pip install https://github.com/retif/pytorch-wheels-builder/releases/download/sa
 
 ### Build Configuration
 
-- **Python**: 3.13
-- **CUDA**: 13.0 toolkit
+- **Python**: 3.13.11
+- **CUDA**: 13.0.88 toolkit
 - **PyTorch**: 2.10.0+cu130
 - **CUDA Compute Capability**: 8.9 (Ada Lovelace)
-- **Build Tools**: GCC 11+, CMake 3.22+, Ninja
+- **Compilers**:
+  - **GCC**: 11.4.0 (Ubuntu 11.4.0-1ubuntu1~22.04)
+  - **G++**: 11.4.0 (Ubuntu 11.4.0-1ubuntu1~22.04)
+- **Build Tools**: CMake 3.22+, Ninja
+- **Runner**: ubuntu-latest (Ubuntu 22.04 LTS)
 
 To build for different GPU architectures, modify `TORCH_CUDA_ARCH_LIST` in the workflow files.
 
