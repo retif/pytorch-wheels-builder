@@ -91,7 +91,7 @@ jobs:
         run: |
           cd flash-attention
           export TORCH_CUDA_ARCH_LIST="${{ env.TORCH_CUDA_ARCH_LIST }}"
-          export MAX_JOBS=4
+          export MAX_JOBS=1
           export FLASH_ATTENTION_FORCE_BUILD=TRUE
           python setup.py bdist_wheel
         env:
