@@ -96,13 +96,20 @@ jobs:
           PYTORCH_VERSION="${{ inputs.pytorch_version || '2.10.0' }}"
           CUDA_SHORT_VERSION="${{ env.CUDA_VERSION }}"
           CUDA_SHORT_VERSION="${CUDA_SHORT_VERSION//./}"  # Remove dots: 13.0 -> 130
+          VERSION_SUFFIX="+cu${CUDA_SHORT_VERSION}torch${PYTORCH_VERSION}"
 
-          # Modify setup.py to append version metadata
-          if grep -q "version=" setup.py; then
-            sed -i "s/version=\(['\"][^'\"]*['\"\]\)/version=\1.replace('\"', '').replace(\"'\", '') + '+cu${CUDA_SHORT_VERSION}torch${PYTORCH_VERSION}'/" setup.py
+          # Check if version already has the correct metadata
+          if grep -q "${VERSION_SUFFIX}" setup.py; then
+            echo "Version already has correct metadata: ${VERSION_SUFFIX}"
+          else
+            # Remove any existing version metadata to avoid duplicates
+            # This handles cases like: 2.2.0+something -> 2.2.0
+            sed -i 's/version=\(['\''"][^+]*\)+[^'\''"]*/version=\1/' setup.py
+
+            # Now add our version metadata
+            sed -i "s/version=\(['\"][^'\"]*['\"\]\)/version=\1.replace('\"', '').replace(\"'\", '') + '${VERSION_SUFFIX}'/" setup.py
+            echo "Patched version to include: ${VERSION_SUFFIX}"
           fi
-
-          echo "Patched version will include: +cu${CUDA_SHORT_VERSION}torch${PYTORCH_VERSION}"
 
       - name: Build SageAttention wheel
         run: |
