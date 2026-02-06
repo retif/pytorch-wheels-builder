@@ -56,7 +56,7 @@ jobs:
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip wheel setuptools ninja packaging
-          pip install torch==${{ inputs.pytorch_version || '2.10.0' }} --index-url https://download.pytorch.org/whl/cu${{ env.CUDA_VERSION | replace('.', '') }}
+          pip install torch==${{ inputs.pytorch_version || '2.10.0' }} --index-url https://download.pytorch.org/whl/cu${{ 130 }}
 
       - name: Clone Flash Attention repository
         run: |
@@ -96,7 +96,7 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: flash-attn-v${{ inputs.flash_attn_version || '2.8.2' }}-py${{ env.PYTHON_VERSION | replace('.', '') }}-cu${{ env.CUDA_VERSION | replace('.', '') }}
+          tag_name: flash-attn-v${{ inputs.flash_attn_version || '2.8.2' }}-py${{ 313 }}-cu${{ 130 }}
           name: Flash Attention v${{ inputs.flash_attn_version || '2.8.2' }} (Python ${{ env.PYTHON_VERSION }}, CUDA ${{ env.CUDA_VERSION }})
           body: |
             # Flash Attention Wheel for Python ${{ env.PYTHON_VERSION }} + CUDA ${{ env.CUDA_VERSION }}
@@ -116,7 +116,7 @@ jobs:
             Or directly from this release:
 
             ```bash
-            pip install https://github.com/${{ github.repository }}/releases/download/flash-attn-v${{ inputs.flash_attn_version || '2.8.2' }}-py${{ env.PYTHON_VERSION | replace('.', '') }}-cu${{ env.CUDA_VERSION | replace('.', '') }}/${{ steps.wheel_name.outputs.wheel_name }}
+            pip install https://github.com/${{ github.repository }}/releases/download/flash-attn-v${{ inputs.flash_attn_version || '2.8.2' }}-py${{ 313 }}-cu${{ 130 }}/${{ steps.wheel_name.outputs.wheel_name }}
             ```
 
             ## Notes
