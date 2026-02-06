@@ -47,6 +47,19 @@ jobs:
           echo "Disk space after cleanup:"
           df -h
 
+      - name: Set up swap space
+        run: |
+          echo "Memory before swap:"
+          free -h
+          # Create 16GB swap file
+          sudo fallocate -l 16G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo "Memory after swap:"
+          free -h
+          sudo swapon --show
+
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
