@@ -148,7 +148,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: flash-attn-v${{ inputs.flash_attn_version || '2.8.2' }}-py313-torch${{ inputs.pytorch_version || '2.10.0' }}-cu130
-          name: Flash Attention Wheel for Python ${{ env.PYTHON_VERSION }} + PyTorch ${{ inputs.pytorch_version || '2.10.0' }} + CUDA ${{ env.CUDA_VERSION }}
+          name: Flash Attention v${{ inputs.flash_attn_version || '2.8.2' }} Wheel for Python ${{ env.PYTHON_VERSION }} + PyTorch ${{ inputs.pytorch_version || '2.10.0' }} + CUDA ${{ env.CUDA_VERSION }}
           body: |
             Built with:
             - Python: ${{ env.PYTHON_VERSION }}
