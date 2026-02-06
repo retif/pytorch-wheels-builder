@@ -40,22 +40,34 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install CUDA Toolkit
-        uses: Jimver/cuda-toolkit@v0.2.16
-        with:
-          cuda: ${{ env.CUDA_VERSION }}
-          method: 'network'
-          sub-packages: '["nvcc", "cudart", "nvrtc", "cublas"]'
+      - name: Install CUDA 13.0 Toolkit
+        run: |
+          # Add NVIDIA CUDA repository (Ubuntu 22.04)
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
+
+          # Install CUDA 13.0 packages
+          sudo apt-get install -y \
+            cuda-nvcc-13-0 \
+            cuda-cudart-dev-13-0 \
+            cuda-nvrtc-dev-13-0 \
+            libcublas-dev-13-0
+
+          # Set environment variables
+          echo "CUDA_HOME=/usr/local/cuda-13.0" >> $GITHUB_ENV
+          echo "PATH=/usr/local/cuda-13.0/bin:$PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/usr/local/cuda-13.0/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: Verify CUDA installation
         run: |
-          nvcc --version
+          /usr/local/cuda-13.0/bin/nvcc --version
           echo "CUDA_HOME=$CUDA_HOME"
 
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip wheel setuptools ninja
-          pip install torch==${{ inputs.pytorch_version || '2.10.0' }} --index-url https://download.pytorch.org/whl/cu${{ 130 }}
+          pip install torch==${{ inputs.pytorch_version || '2.10.0' }} --index-url https://download.pytorch.org/whl/cu130
 
       - name: Clone SageAttention repository
         run: |
@@ -94,7 +106,7 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: sageattention-v${{ inputs.sageattention_version || '2.2.0' }}-py${{ 313 }}-cu${{ 130 }}
+          tag_name: sageattention-v${{ inputs.sageattention_version || '2.2.0' }}-py313-cu130
           name: SageAttention v${{ inputs.sageattention_version || '2.2.0' }} (Python ${{ env.PYTHON_VERSION }}, CUDA ${{ env.CUDA_VERSION }})
           body: |
             # SageAttention Wheel for Python ${{ env.PYTHON_VERSION }} + CUDA ${{ env.CUDA_VERSION }}
@@ -114,7 +126,7 @@ jobs:
             Or directly from this release:
 
             ```bash
-            pip install https://github.com/${{ github.repository }}/releases/download/sageattention-v${{ inputs.sageattention_version || '2.2.0' }}-py${{ 313 }}-cu${{ 130 }}/${{ steps.wheel_name.outputs.wheel_name }}
+            pip install https://github.com/${{ github.repository }}/releases/download/sageattention-v${{ inputs.sageattention_version || '2.2.0' }}-py313-cu130/${{ steps.wheel_name.outputs.wheel_name }}
             ```
 
             ## Notes
