@@ -47,12 +47,12 @@ jobs:
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update
 
-          # Install CUDA 13.0 packages
+          # Install CUDA 13.0 packages (both dev and runtime)
           sudo apt-get install -y \
-            cuda-nvcc-13-0 \
-            cuda-cudart-dev-13-0 \
-            cuda-nvrtc-dev-13-0 \
-            libcublas-dev-13-0
+            cuda-toolkit-13-0 \
+            cuda-runtime-13-0 \
+            cuda-libraries-13-0 \
+            cuda-libraries-dev-13-0
 
           # Set environment variables
           echo "CUDA_HOME=/usr/local/cuda-13.0" >> $GITHUB_ENV
