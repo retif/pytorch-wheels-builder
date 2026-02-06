@@ -33,9 +33,18 @@ jobs:
 
       - name: Free disk space
         run: |
+          echo "Disk space before cleanup:"
+          df -h
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /usr/local/.ghcup
+          sudo docker image prune --all --force || true
+          sudo apt-get clean
+          echo "Disk space after cleanup:"
           df -h
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
@@ -93,10 +102,14 @@ jobs:
       - name: Build Flash Attention wheel
         run: |
           cd flash-attention
+          echo "Disk space before build:"
+          df -h
           export TORCH_CUDA_ARCH_LIST="${{ env.TORCH_CUDA_ARCH_LIST }}"
           export MAX_JOBS=1
           export FLASH_ATTENTION_FORCE_BUILD=TRUE
           python setup.py bdist_wheel
+          echo "Disk space after build:"
+          df -h
         env:
           CUDA_HOME: ${{ env.CUDA_HOME }}
 
