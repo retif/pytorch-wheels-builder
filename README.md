@@ -7,9 +7,17 @@ This repository contains GitHub Actions workflows to build optimized binary whee
 - **Flash Attention**: Fast and memory-efficient attention implementation
 - **SageAttention**: Optimized attention mechanism
 
+## GPU Optimization
+
+These wheels are compiled with **CUDA Compute Capability 8.9**, optimized for:
+- **NVIDIA Ada Lovelace GPUs** (RTX 40-series: RTX 4090, 4080, 4070, 4060, etc.)
+- **Professional Ada GPUs** (RTX 6000 Ada Generation, etc.)
+
+> **Note**: Wheels will work best on GPUs with compute capability 8.9. For other GPU architectures, you may need to build from source with appropriate `TORCH_CUDA_ARCH_LIST` settings.
+
 ## Why This Exists
 
-As of February 2026, official binary wheels for Python 3.13 + CUDA 13.0 are not available for these packages. This repository builds them from source using GitHub Actions runners with GPU support.
+As of February 2026, official binary wheels for Python 3.13 + CUDA 13.0 are not available for these packages. This repository builds them from source using GitHub Actions with CUDA 13.0 toolkit installed.
 
 ## Structure
 
@@ -48,14 +56,15 @@ pip install https://github.com/retif/pytorch-wheels-builder/releases/download/fl
 pip install https://github.com/retif/pytorch-wheels-builder/releases/download/sageattention-v2.2.0-py313-cu130/sageattention-2.2.0-cp313-cp313-linux_x86_64.whl
 ```
 
-### Build Requirements
+### Build Configuration
 
-- Python 3.13
-- CUDA 13.0 toolkit
-- PyTorch 2.10.0+cu130
-- GCC 11+ (for C++ compilation)
-- CMake 3.22+
-- Ninja build system
+- **Python**: 3.13
+- **CUDA**: 13.0 toolkit
+- **PyTorch**: 2.10.0+cu130
+- **CUDA Compute Capability**: 8.9 (Ada Lovelace)
+- **Build Tools**: GCC 11+, CMake 3.22+, Ninja
+
+To build for different GPU architectures, modify `TORCH_CUDA_ARCH_LIST` in the workflow files.
 
 ## GitHub Actions Setup
 
