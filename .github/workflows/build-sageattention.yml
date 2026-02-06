@@ -80,7 +80,7 @@ jobs:
           git submodule update --init --recursive
           echo "Building from commit: $(git rev-parse HEAD)"
 
-      - name: Patch SageAttention setup.py for cross-compilation
+      - name: Patch SageAttention setup.py for cross-compilation and version
         run: |
           cd SageAttention
           # Remove any SM target assertions that may fail without GPU
@@ -91,6 +91,18 @@ jobs:
           if grep -q "sm_targets = \[\]" setup.py; then
             sed -i 's/sm_targets = \[\]/sm_targets = [line.strip() for line in os.environ.get("TORCH_CUDA_ARCH_LIST", "").split(",") if line.strip()] if os.environ.get("TORCH_CUDA_ARCH_LIST") else []/' setup.py
           fi
+
+          # Inject CUDA and PyTorch version into package version string
+          PYTORCH_VERSION="${{ inputs.pytorch_version || '2.10.0' }}"
+          CUDA_SHORT_VERSION="${{ env.CUDA_VERSION }}"
+          CUDA_SHORT_VERSION="${CUDA_SHORT_VERSION//./}"  # Remove dots: 13.0 -> 130
+
+          # Modify setup.py to append version metadata
+          if grep -q "version=" setup.py; then
+            sed -i "s/version=\(['\"][^'\"]*['\"\]\)/version=\1.replace('\"', '').replace(\"'\", '') + '+cu${CUDA_SHORT_VERSION}torch${PYTORCH_VERSION}'/" setup.py
+          fi
+
+          echo "Patched version will include: +cu${CUDA_SHORT_VERSION}torch${PYTORCH_VERSION}"
 
       - name: Build SageAttention wheel
         run: |
