@@ -1,0 +1,131 @@
+name: Build Nunchaku Wheel
+
+on:
+  workflow_dispatch:
+    inputs:
+      nunchaku_version:
+        description: 'Nunchaku version to build'
+        required: true
+        default: '1.0.2'
+      pytorch_version:
+        description: 'PyTorch version'
+        required: true
+        default: '2.10.0'
+  schedule:
+    # Run weekly on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+
+env:
+  PYTHON_VERSION: '3.13'
+  CUDA_VERSION: '13.0'
+  TORCH_CUDA_ARCH_LIST: '8.9'  # RTX 4090
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          df -h
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.16
+        with:
+          cuda: ${{ env.CUDA_VERSION }}
+          method: 'network'
+          sub-packages: '["nvcc", "cudart", "nvrtc", "cublas", "cusparse"]'
+
+      - name: Verify CUDA installation
+        run: |
+          nvcc --version
+          echo "CUDA_HOME=$CUDA_HOME"
+          echo "PATH=$PATH"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          pip install torch==${{ inputs.pytorch_version || '2.10.0' }} --index-url https://download.pytorch.org/whl/cu${{ env.CUDA_VERSION | replace('.', '') }}
+
+      - name: Clone Nunchaku repository
+        run: |
+          git clone https://github.com/nunchaku-tech/nunchaku.git
+          cd nunchaku
+          git checkout v${{ inputs.nunchaku_version || '1.0.2' }} || git checkout main
+          echo "Building from commit: $(git rev-parse HEAD)"
+
+      - name: Build Nunchaku wheel
+        run: |
+          cd nunchaku
+          export TORCH_CUDA_ARCH_LIST="${{ env.TORCH_CUDA_ARCH_LIST }}"
+          export MAX_JOBS=4
+          python setup.py bdist_wheel
+        env:
+          CUDA_HOME: ${{ env.CUDA_HOME }}
+
+      - name: List built wheels
+        run: |
+          ls -lh nunchaku/dist/
+
+      - name: Test wheel installation
+        run: |
+          pip install nunchaku/dist/*.whl
+          python -c "import nunchaku; print(f'Nunchaku version: {nunchaku.__version__}')"
+
+      - name: Get wheel name
+        id: wheel_name
+        run: |
+          WHEEL_PATH=$(ls nunchaku/dist/*.whl)
+          WHEEL_NAME=$(basename $WHEEL_PATH)
+          echo "wheel_name=$WHEEL_NAME" >> $GITHUB_OUTPUT
+          echo "wheel_path=$WHEEL_PATH" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: nunchaku-v${{ inputs.nunchaku_version || '1.0.2' }}-py${{ env.PYTHON_VERSION | replace('.', '') }}-cu${{ env.CUDA_VERSION | replace('.', '') }}
+          name: Nunchaku v${{ inputs.nunchaku_version || '1.0.2' }} (Python ${{ env.PYTHON_VERSION }}, CUDA ${{ env.CUDA_VERSION }})
+          body: |
+            # Nunchaku Wheel for Python ${{ env.PYTHON_VERSION }} + CUDA ${{ env.CUDA_VERSION }}
+
+            Built with:
+            - Python: ${{ env.PYTHON_VERSION }}
+            - CUDA: ${{ env.CUDA_VERSION }}
+            - PyTorch: ${{ inputs.pytorch_version || '2.10.0' }}
+            - CUDA Arch: ${{ env.TORCH_CUDA_ARCH_LIST }}
+
+            ## Installation
+
+            ```bash
+            pip install ${{ steps.wheel_name.outputs.wheel_name }}
+            ```
+
+            Or directly from this release:
+
+            ```bash
+            pip install https://github.com/${{ github.repository }}/releases/download/nunchaku-v${{ inputs.nunchaku_version || '1.0.2' }}-py${{ env.PYTHON_VERSION | replace('.', '') }}-cu${{ env.CUDA_VERSION | replace('.', '') }}/${{ steps.wheel_name.outputs.wheel_name }}
+            ```
+          files: ${{ steps.wheel_name.outputs.wheel_path }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload wheel as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nunchaku-py${{ env.PYTHON_VERSION }}-cu${{ env.CUDA_VERSION }}
+          path: ${{ steps.wheel_name.outputs.wheel_path }}
+          retention-days: 30
