@@ -77,6 +77,13 @@ jobs:
           git checkout v${{ inputs.nunchaku_version || '1.0.2' }} || git checkout main
           echo "Building from commit: $(git rev-parse HEAD)"
 
+      - name: Patch Nunchaku setup.py for cross-compilation
+        run: |
+          cd nunchaku
+          # Patch setup.py to force SM targets when TORCH_CUDA_ARCH_LIST is set
+          sed -i '/assert len(sm_targets) > 0/d' setup.py
+          sed -i 's/sm_targets = \[\]/sm_targets = [line.strip() for line in os.environ.get("TORCH_CUDA_ARCH_LIST", "").split(",") if line.strip()] if os.environ.get("TORCH_CUDA_ARCH_LIST") else []/' setup.py
+
       - name: Build Nunchaku wheel
         run: |
           cd nunchaku
