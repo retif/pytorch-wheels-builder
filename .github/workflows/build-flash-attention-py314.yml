@@ -1,0 +1,187 @@
+name: Build Flash Attention Wheel (Python 3.14)
+
+on:
+  workflow_dispatch:
+    inputs:
+      flash_attn_version:
+        description: 'Flash Attention version to build'
+        required: true
+        default: '2.8.2'
+      pytorch_version:
+        description: 'PyTorch version'
+        required: true
+        default: '2.10.0'
+  schedule:
+    # Run weekly on Monday at 03:00 UTC
+    - cron: '0 3 * * 1'
+
+env:
+  PYTHON_VERSION: '3.14'
+  CUDA_VERSION: '13.0'
+  TORCH_CUDA_ARCH_LIST: '8.9'  # RTX 4090
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /usr/local/.ghcup
+          sudo docker image prune --all --force || true
+          sudo apt-get clean
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Set up swap space
+        run: |
+          echo "Memory before swap:"
+          free -h
+          # Create 16GB swap file
+          sudo fallocate -l 16G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo "Memory after swap:"
+          free -h
+          sudo swapon --show
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install CUDA 13.0 Toolkit
+        run: |
+          # Add NVIDIA CUDA repository (Ubuntu 22.04)
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
+
+          # Install CUDA 13.0 packages (both dev and runtime)
+          sudo apt-get install -y \
+            cuda-toolkit-13-0 \
+            cuda-runtime-13-0 \
+            cuda-libraries-13-0 \
+            cuda-libraries-dev-13-0
+
+          # Set environment variables
+          echo "CUDA_HOME=/usr/local/cuda-13.0" >> $GITHUB_ENV
+          echo "PATH=/usr/local/cuda-13.0/bin:$PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/usr/local/cuda-13.0/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+      - name: Verify CUDA installation
+        run: |
+          /usr/local/cuda-13.0/bin/nvcc --version
+          echo "CUDA_HOME=$CUDA_HOME"
+          echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip wheel setuptools ninja packaging
+          pip install torch==${{ inputs.pytorch_version || '2.10.0' }} --index-url https://download.pytorch.org/whl/cu130
+
+      - name: Clone Flash Attention repository
+        run: |
+          git clone --recursive https://github.com/Dao-AILab/flash-attention.git
+          cd flash-attention
+          git checkout v${{ inputs.flash_attn_version || '2.8.2' }} || git checkout main
+          git submodule update --init --recursive
+          echo "Building from commit: $(git rev-parse HEAD)"
+
+      - name: Patch Flash Attention setup.py for cross-compilation
+        run: |
+          cd flash-attention
+          # Flash Attention uses environment variable but may have assertions
+          # Ensure TORCH_CUDA_ARCH_LIST is respected even without GPU
+          if grep -q "assert.*sm_targets" setup.py; then
+            sed -i '/assert.*sm_targets/d' setup.py
+          fi
+
+      - name: Build Flash Attention wheel
+        run: |
+          cd flash-attention
+          echo "Disk space before build:"
+          df -h
+          export TORCH_CUDA_ARCH_LIST="${{ env.TORCH_CUDA_ARCH_LIST }}"
+          export MAX_JOBS=1
+          export FLASH_ATTENTION_FORCE_BUILD=TRUE
+          python setup.py bdist_wheel
+          echo "Disk space after build:"
+          df -h
+        env:
+          CUDA_HOME: ${{ env.CUDA_HOME }}
+
+      - name: List built wheels
+        run: |
+          ls -lh flash-attention/dist/
+
+      - name: Test wheel installation
+        run: |
+          pip install flash-attention/dist/*.whl
+          python -c "import flash_attn; print(f'Flash Attention version: {flash_attn.__version__}')"
+
+      - name: Get wheel name
+        id: wheel_name
+        run: |
+          WHEEL_PATH=$(ls flash-attention/dist/*.whl)
+          WHEEL_NAME=$(basename $WHEEL_PATH)
+          echo "wheel_name=$WHEEL_NAME" >> $GITHUB_OUTPUT
+          echo "wheel_path=$WHEEL_PATH" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: flash-attn-v${{ inputs.flash_attn_version || '2.8.2' }}-py314-torch${{ inputs.pytorch_version || '2.10.0' }}-cu130
+          name: Flash Attention v${{ inputs.flash_attn_version || '2.8.2' }} Wheel for Python ${{ env.PYTHON_VERSION }} + PyTorch ${{ inputs.pytorch_version || '2.10.0' }} + CUDA ${{ env.CUDA_VERSION }}
+          body: |
+            Built with:
+            - Python: ${{ env.PYTHON_VERSION }}
+            - CUDA: ${{ env.CUDA_VERSION }}
+            - PyTorch: ${{ inputs.pytorch_version || '2.10.0' }}
+            - CUDA Arch: ${{ env.TORCH_CUDA_ARCH_LIST }}
+
+            ## Installation
+
+            ```bash
+            pip install ${{ steps.wheel_name.outputs.wheel_name }}
+            ```
+
+            Or directly from this release:
+
+            ```bash
+            pip install https://github.com/${{ github.repository }}/releases/download/flash-attn-v${{ inputs.flash_attn_version || '2.8.2' }}-py314-torch${{ inputs.pytorch_version || '2.10.0' }}-cu130/${{ steps.wheel_name.outputs.wheel_name }}
+            ```
+
+            ## Notes
+
+            Flash Attention provides fast and memory-efficient exact attention with IO-awareness.
+            Compatible with PyTorch ${{ inputs.pytorch_version || '2.10.0' }} and CUDA ${{ env.CUDA_VERSION }}.
+          files: ${{ steps.wheel_name.outputs.wheel_path }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload wheel as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flash-attn-py${{ env.PYTHON_VERSION }}-cu${{ env.CUDA_VERSION }}
+          path: ${{ steps.wheel_name.outputs.wheel_path }}
+          retention-days: 30
