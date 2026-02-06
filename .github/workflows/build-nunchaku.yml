@@ -72,9 +72,10 @@ jobs:
 
       - name: Clone Nunchaku repository
         run: |
-          git clone https://github.com/nunchaku-tech/nunchaku.git
+          git clone --recursive https://github.com/nunchaku-tech/nunchaku.git
           cd nunchaku
           git checkout v${{ inputs.nunchaku_version || '1.0.2' }} || git checkout main
+          git submodule update --init --recursive
           echo "Building from commit: $(git rev-parse HEAD)"
 
       - name: Patch Nunchaku setup.py for cross-compilation

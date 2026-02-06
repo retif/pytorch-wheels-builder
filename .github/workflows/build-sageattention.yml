@@ -71,9 +71,10 @@ jobs:
 
       - name: Clone SageAttention repository
         run: |
-          git clone https://github.com/thu-ml/SageAttention.git
+          git clone --recursive https://github.com/thu-ml/SageAttention.git
           cd SageAttention
           git checkout v${{ inputs.sageattention_version || '2.2.0' }} || git checkout main
+          git submodule update --init --recursive
           echo "Building from commit: $(git rev-parse HEAD)"
 
       - name: Patch SageAttention setup.py for cross-compilation
