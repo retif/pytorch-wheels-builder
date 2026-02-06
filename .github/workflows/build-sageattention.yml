@@ -76,6 +76,18 @@ jobs:
           git checkout v${{ inputs.sageattention_version || '2.2.0' }} || git checkout main
           echo "Building from commit: $(git rev-parse HEAD)"
 
+      - name: Patch SageAttention setup.py for cross-compilation
+        run: |
+          cd SageAttention
+          # Remove any SM target assertions that may fail without GPU
+          if grep -q "assert.*sm_targets" setup.py; then
+            sed -i '/assert.*sm_targets/d' setup.py
+          fi
+          # Force SM targets from environment if setup.py doesn't respect TORCH_CUDA_ARCH_LIST
+          if grep -q "sm_targets = \[\]" setup.py; then
+            sed -i 's/sm_targets = \[\]/sm_targets = [line.strip() for line in os.environ.get("TORCH_CUDA_ARCH_LIST", "").split(",") if line.strip()] if os.environ.get("TORCH_CUDA_ARCH_LIST") else []/' setup.py
+          fi
+
       - name: Build SageAttention wheel
         run: |
           cd SageAttention
