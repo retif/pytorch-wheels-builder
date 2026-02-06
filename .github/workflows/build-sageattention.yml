@@ -145,8 +145,8 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: sageattention-v${{ inputs.sageattention_version || '2.2.0' }}-py313-cu130-torch${{ inputs.pytorch_version || '2.10.0' }}
-          name: SageAttention Wheel for Python ${{ env.PYTHON_VERSION }} + CUDA ${{ env.CUDA_VERSION }} + PyTorch ${{ inputs.pytorch_version || '2.10.0' }}
+          tag_name: sageattention-v${{ inputs.sageattention_version || '2.2.0' }}-py313-torch${{ inputs.pytorch_version || '2.10.0' }}-cu130
+          name: SageAttention Wheel for Python ${{ env.PYTHON_VERSION }} + PyTorch ${{ inputs.pytorch_version || '2.10.0' }} + CUDA ${{ env.CUDA_VERSION }}
           body: |
             Built with:
             - Python: ${{ env.PYTHON_VERSION }}
@@ -163,7 +163,7 @@ jobs:
             Or directly from this release:
 
             ```bash
-            pip install https://github.com/${{ github.repository }}/releases/download/sageattention-v${{ inputs.sageattention_version || '2.2.0' }}-py313-cu130-torch${{ inputs.pytorch_version || '2.10.0' }}/${{ steps.wheel_name.outputs.wheel_name }}
+            pip install https://github.com/${{ github.repository }}/releases/download/sageattention-v${{ inputs.sageattention_version || '2.2.0' }}-py313-torch${{ inputs.pytorch_version || '2.10.0' }}-cu130/${{ steps.wheel_name.outputs.wheel_name }}
             ```
 
             ## Notes
