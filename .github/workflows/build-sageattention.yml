@@ -66,6 +66,10 @@ jobs:
         run: |
           /usr/local/cuda-13.0/bin/nvcc --version
           echo "CUDA_HOME=$CUDA_HOME"
+          echo ""
+          echo "Compiler versions:"
+          gcc --version | head -1
+          g++ --version | head -1
 
       - name: Install build dependencies
         run: |
