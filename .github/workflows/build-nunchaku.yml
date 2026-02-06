@@ -141,10 +141,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: nunchaku-v${{ inputs.nunchaku_version || '1.0.2' }}-py313-cu130
-          name: Nunchaku v${{ inputs.nunchaku_version || '1.0.2' }}
+          name: Nunchaku Wheel for Python ${{ env.PYTHON_VERSION }} + CUDA ${{ env.CUDA_VERSION }}
           body: |
-            # Nunchaku Wheel for Python ${{ env.PYTHON_VERSION }} + CUDA ${{ env.CUDA_VERSION }}
-
             Built with:
             - Python: ${{ env.PYTHON_VERSION }}
             - CUDA: ${{ env.CUDA_VERSION }}
