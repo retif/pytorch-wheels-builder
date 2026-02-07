@@ -106,28 +106,28 @@ jobs:
 
       - name: Build CuPy wheel
         run: |
-          cd cupy
           export CUDA_PATH=/usr/local/cuda-13.0
           export TORCH_CUDA_ARCH_LIST="${{ env.TORCH_CUDA_ARCH_LIST }}"
           export MAX_JOBS=4
-          python setup.py bdist_wheel
+          # Use pip wheel instead of setup.py bdist_wheel for better reliability
+          pip wheel --no-deps --wheel-dir=./dist -v ./cupy
         env:
           CUDA_HOME: ${{ env.CUDA_HOME }}
 
       - name: List built wheels
         run: |
-          ls -lh cupy/dist/
+          ls -lh dist/
 
       - name: Test wheel installation
         run: |
-          pip install cupy/dist/*.whl
+          pip install dist/*.whl
           python -c "import cupy; print(f'CuPy version: {cupy.__version__}')"
           python -c "import cupy; print(f'CUDA available: {cupy.cuda.is_available()}')"
 
       - name: Get wheel name
         id: wheel_name
         run: |
-          WHEEL_PATH=$(ls cupy/dist/*.whl)
+          WHEEL_PATH=$(ls dist/*.whl)
           WHEEL_NAME=$(basename $WHEEL_PATH)
           echo "wheel_name=$WHEEL_NAME" >> $GITHUB_OUTPUT
           echo "wheel_path=$WHEEL_PATH" >> $GITHUB_OUTPUT
