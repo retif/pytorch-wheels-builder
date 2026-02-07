@@ -71,7 +71,7 @@ pip install https://github.com/retif/pytorch-wheels-builder/releases/download/sa
 
 ### Build Configuration
 
-- **Python**: 3.13.11 / 3.14.x
+- **Python**: 3.13.11 / 3.14.2
 - **CUDA**: 13.0.88 toolkit
 - **PyTorch**: 2.10.0+cu130
 - **CUDA Compute Capability**: 8.9 (Ada Lovelace)
