@@ -1,0 +1,176 @@
+name: Build CuPy-CUDA13x Wheel (Python 3.13)
+
+on:
+  workflow_dispatch:
+    inputs:
+      cupy_version:
+        description: 'CuPy version to build'
+        required: true
+        default: '13.6.0'
+      pytorch_version:
+        description: 'PyTorch version (for consistency with other builds)'
+        required: true
+        default: '2.10.0'
+  schedule:
+    # Run weekly on Monday at 06:00 UTC
+    - cron: '0 6 * * 1'
+
+env:
+  PYTHON_VERSION: '3.13'
+  CUDA_VERSION: '13.0'
+  TORCH_CUDA_ARCH_LIST: '8.9'  # RTX 4090
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          df -h
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install CUDA 13.0 Toolkit
+        run: |
+          # Add NVIDIA CUDA repository (Ubuntu 22.04)
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
+
+          # Install CUDA 13.0 packages (both dev and runtime)
+          sudo apt-get install -y \
+            cuda-toolkit-13-0 \
+            cuda-runtime-13-0 \
+            cuda-libraries-13-0 \
+            cuda-libraries-dev-13-0
+
+          # Set environment variables
+          echo "CUDA_HOME=/usr/local/cuda-13.0" >> $GITHUB_ENV
+          echo "PATH=/usr/local/cuda-13.0/bin:$PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/usr/local/cuda-13.0/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+      - name: Verify CUDA installation
+        run: |
+          /usr/local/cuda-13.0/bin/nvcc --version
+          echo "CUDA_HOME=$CUDA_HOME"
+          echo ""
+          echo "Compiler versions:"
+          gcc --version | head -1
+          g++ --version | head -1
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          pip install "cython>=3.0" fastrlock numpy
+
+      - name: Clone CuPy repository
+        run: |
+          git clone --recursive https://github.com/cupy/cupy.git
+          cd cupy
+          git checkout v${{ inputs.cupy_version || '13.6.0' }} || git checkout main
+          git submodule update --init --recursive
+          echo "Building from commit: $(git rev-parse HEAD)"
+
+      - name: Patch CuPy setup.py for version metadata
+        run: |
+          cd cupy
+          # Inject CUDA version into package version string
+          CUDA_SHORT_VERSION="${{ env.CUDA_VERSION }}"
+          CUDA_SHORT_VERSION="${CUDA_SHORT_VERSION//./}"  # Remove dots: 13.0 -> 130
+          VERSION_SUFFIX="+cu${CUDA_SHORT_VERSION}"
+
+          # Check if version already has the correct metadata
+          if grep -q "${VERSION_SUFFIX}" setup.py; then
+            echo "Version already has correct metadata: ${VERSION_SUFFIX}"
+          else
+            # Remove any existing version metadata to avoid duplicates
+            sed -i 's/version=\(['\''"][^+]*\)+[^'\''"]*/version=\1/' setup.py
+
+            # Now add our version metadata
+            sed -i "s/version=\(['\"][^'\"]*['\"\]\)/version=\1.replace('\"', '').replace(\"'\", '') + '${VERSION_SUFFIX}'/" setup.py
+            echo "Patched version to include: ${VERSION_SUFFIX}"
+          fi
+
+      - name: Build CuPy wheel
+        run: |
+          cd cupy
+          export CUDA_PATH=/usr/local/cuda-13.0
+          export TORCH_CUDA_ARCH_LIST="${{ env.TORCH_CUDA_ARCH_LIST }}"
+          export MAX_JOBS=4
+          python setup.py bdist_wheel
+        env:
+          CUDA_HOME: ${{ env.CUDA_HOME }}
+
+      - name: List built wheels
+        run: |
+          ls -lh cupy/dist/
+
+      - name: Test wheel installation
+        run: |
+          pip install cupy/dist/*.whl
+          python -c "import cupy; print(f'CuPy version: {cupy.__version__}')"
+          python -c "import cupy; print(f'CUDA available: {cupy.cuda.is_available()}')"
+
+      - name: Get wheel name
+        id: wheel_name
+        run: |
+          WHEEL_PATH=$(ls cupy/dist/*.whl)
+          WHEEL_NAME=$(basename $WHEEL_PATH)
+          echo "wheel_name=$WHEEL_NAME" >> $GITHUB_OUTPUT
+          echo "wheel_path=$WHEEL_PATH" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: cupy-cuda13x-v${{ inputs.cupy_version || '13.6.0' }}-py313-torch${{ inputs.pytorch_version || '2.10.0' }}-cu130
+          name: CuPy-CUDA13x v${{ inputs.cupy_version || '13.6.0' }} Wheel for Python ${{ env.PYTHON_VERSION }} + PyTorch ${{ inputs.pytorch_version || '2.10.0' }} + CUDA ${{ env.CUDA_VERSION }}
+          body: |
+            Built with:
+            - Python: ${{ env.PYTHON_VERSION }}
+            - CUDA: ${{ env.CUDA_VERSION }}
+            - PyTorch: ${{ inputs.pytorch_version || '2.10.0' }} (for compatibility)
+            - CUDA Arch: ${{ env.TORCH_CUDA_ARCH_LIST }}
+
+            ## Installation
+
+            ```bash
+            pip install ${{ steps.wheel_name.outputs.wheel_name }}
+            ```
+
+            Or directly from this release:
+
+            ```bash
+            pip install https://github.com/${{ github.repository }}/releases/download/cupy-cuda13x-v${{ inputs.cupy_version || '13.6.0' }}-py313-torch${{ inputs.pytorch_version || '2.10.0' }}-cu130/${{ steps.wheel_name.outputs.wheel_name }}
+            ```
+
+            ## Notes
+
+            CuPy is a NumPy/SciPy-compatible array library for GPU-accelerated computing with Python.
+            This wheel is built for CUDA ${{ env.CUDA_VERSION }} and is compatible with Python ${{ env.PYTHON_VERSION }}.
+          files: ${{ steps.wheel_name.outputs.wheel_path }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload wheel as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cupy-cuda13x-py${{ env.PYTHON_VERSION }}-cu${{ env.CUDA_VERSION }}
+          path: ${{ steps.wheel_name.outputs.wheel_path }}
+          retention-days: 30

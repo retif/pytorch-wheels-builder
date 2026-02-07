@@ -6,12 +6,14 @@ This repository builds custom binary wheels for Python 3.13/3.14 + PyTorch 2.10.
 
 ```
 .github/workflows/
-├── build-nunchaku.yml              # Python 3.13 build
+├── build-nunchaku-py313.yml        # Python 3.13 build
 ├── build-nunchaku-py314.yml        # Python 3.14 build
-├── build-flash-attention.yml       # Python 3.13 build
+├── build-flash-attention-py313.yml # Python 3.13 build
 ├── build-flash-attention-py314.yml # Python 3.14 build
-├── build-sageattention.yml         # Python 3.13 build
-└── build-sageattention-py314.yml   # Python 3.14 build
+├── build-sageattention-py313.yml   # Python 3.13 build
+├── build-sageattention-py314.yml   # Python 3.14 build
+├── build-cupy-cuda13x-py313.yml    # Python 3.13 build
+└── build-cupy-cuda13x-py314.yml    # Python 3.14 build
 ```
 
 ## Release Tag Format
@@ -25,6 +27,7 @@ Examples:
 - `nunchaku-v1.0.2-py313-torch2.10.0-cu130`
 - `flash-attn-v2.8.2-py314-torch2.10.0-cu130`
 - `sageattention-v2.2.0-py313-torch2.10.0-cu130`
+- `cupy-cuda13x-v13.6.0-py314-torch2.10.0-cu130`
 
 ## Release Title Format
 
@@ -40,26 +43,29 @@ Example:
 ### Manual Trigger
 ```bash
 # Python 3.13
-gh workflow run build-nunchaku.yml
-gh workflow run build-sageattention.yml
-gh workflow run build-flash-attention.yml
+gh workflow run build-nunchaku-py313.yml
+gh workflow run build-sageattention-py313.yml
+gh workflow run build-flash-attention-py313.yml
+gh workflow run build-cupy-cuda13x-py313.yml
 
 # Python 3.14
 gh workflow run build-nunchaku-py314.yml
 gh workflow run build-sageattention-py314.yml
 gh workflow run build-flash-attention-py314.yml
+gh workflow run build-cupy-cuda13x-py314.yml
 ```
 
 ### Schedule
 Workflows run weekly on Monday:
-- Python 3.13: 00:00 (Nunchaku), 02:00 (Flash), 04:00 (Sage)
-- Python 3.14: 01:00 (Nunchaku), 03:00 (Flash), 05:00 (Sage)
+- Python 3.13: 00:00 (Nunchaku), 02:00 (Flash), 04:00 (Sage), 06:00 (CuPy)
+- Python 3.14: 01:00 (Nunchaku), 03:00 (Flash), 05:00 (Sage), 07:00 (CuPy)
 
 ## Build Times
 
 - **Nunchaku**: ~25 minutes
 - **SageAttention**: ~9 minutes
 - **Flash Attention**: ~5.5 hours (uses 16GB swap to prevent OOM)
+- **CuPy-CUDA13x**: ~15-20 minutes (estimated)
 
 ## Flash Attention Special Notes
 
@@ -85,8 +91,9 @@ The swap configuration is in the workflow:
 - **Nunchaku**: `nunchaku-1.0.2+torch2.10-cp313-cp313-linux_x86_64.whl`
 - **SageAttention**: `sageattention-2.2.0+cu130torch2.10.0-cp313-cp313-linux_x86_64.whl`
 - **Flash Attention**: `flash_attn-2.8.2-cp313-cp313-linux_x86_64.whl` (no metadata - not patched)
+- **CuPy-CUDA13x**: `cupy_cuda13x-13.6.0+cu130-cp313-cp313-linux_x86_64.whl`
 
-Nunchaku and SageAttention have version injection patches in their workflows that add `+cu130torch2.10.0` metadata.
+Nunchaku, SageAttention, and CuPy have version injection patches in their workflows that add `+cu130` or `+cu130torch2.10.0` metadata.
 
 ## Updating Package Versions
 
@@ -94,7 +101,7 @@ To build a new version of a package:
 
 1. Trigger the workflow with custom version input:
 ```bash
-gh workflow run build-nunchaku.yml -f nunchaku_version=1.0.3 -f pytorch_version=2.10.0
+gh workflow run build-nunchaku-py313.yml -f nunchaku_version=1.0.3 -f pytorch_version=2.10.0
 ```
 
 2. Or update the default version in the workflow file's `inputs` section
@@ -114,7 +121,7 @@ Without this, release creation will fail with HTTP 403 errors.
 ```bash
 gh release delete nunchaku-v1.0.2-py313-cu130 --yes  # Old format
 # Then rebuild with correct tag format
-gh workflow run build-nunchaku.yml
+gh workflow run build-nunchaku-py313.yml
 ```
 
 ### Check Build Status
@@ -195,3 +202,4 @@ Workflows need:
 - **Nunchaku**: https://github.com/nunchaku-tech/nunchaku
 - **Flash Attention**: https://github.com/Dao-AILab/flash-attention
 - **SageAttention**: https://github.com/thu-ml/SageAttention
+- **CuPy**: https://github.com/cupy/cupy
