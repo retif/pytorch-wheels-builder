@@ -100,19 +100,19 @@ CuPy has different version requirements for different Python versions:
 
 ## Version Metadata in Wheels
 
-- **Nunchaku**: `nunchaku-1.0.2+cu130sm89-x86_64-torch2.10.0-cp313-cp313-linux_x86_64.whl`
-- **SageAttention**: `sageattention-2.2.0+cu130sm89-x86_64-torch2.10.0-cp313-cp313-linux_x86_64.whl`
+- **Nunchaku**: `nunchaku-1.0.2+cu130sm89torch2.10.0-cp313-cp313-linux_x86_64.whl`
+- **SageAttention**: `sageattention-2.2.0+cu130sm89torch2.10.0-cp313-cp313-linux_x86_64.whl`
 - **Flash Attention**: `flash_attn-2.8.2-cp313-cp313-linux_x86_64.whl` (no metadata - not patched)
-- **CuPy-CUDA13x**: `cupy_cuda13x-13.6.0+cu130sm89-x86_64-cp313-cp313-linux_x86_64.whl`
+- **CuPy-CUDA13x**: `cupy_cuda13x-13.6.0+cu130sm89-cp313-cp313-linux_x86_64.whl`
 
 Nunchaku, SageAttention, and CuPy have version injection patches in their workflows that add comprehensive metadata:
-- **Format**: `+cu{CUDA_VER}sm{GPU_ARCH}-{SYS_ARCH}-torch{PYTORCH_VER}` (for PyTorch-dependent packages)
-- **Format**: `+cu{CUDA_VER}sm{GPU_ARCH}-{SYS_ARCH}` (for CuPy)
-- **Example**: `+cu130sm89-x86_64-torch2.10.0`
+- **Format**: `+cu{CUDA_VER}sm{GPU_ARCH}torch{PYTORCH_VER}` (for PyTorch-dependent packages)
+- **Format**: `+cu{CUDA_VER}sm{GPU_ARCH}` (for CuPy)
+- **Example**: `+cu130sm89torch2.10.0`
   - `cu130` = CUDA 13.0
   - `sm89` = SM 8.9 GPU architecture (RTX 4090)
-  - `x86_64` = System architecture
   - `torch2.10.0` = PyTorch version (if applicable)
+- **Note**: System architecture (x86_64) is automatically included in the platform tag at the end of the wheel name
 
 ## Updating Package Versions
 

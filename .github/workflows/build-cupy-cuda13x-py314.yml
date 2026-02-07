@@ -87,13 +87,12 @@ jobs:
       - name: Patch CuPy setup.py for version metadata
         run: |
           cd cupy
-          # Inject CUDA version, GPU architecture, and system architecture into package version string
+          # Inject CUDA version and GPU architecture into package version string
           CUDA_SHORT_VERSION="${{ env.CUDA_VERSION }}"
           CUDA_SHORT_VERSION="${CUDA_SHORT_VERSION//./}"  # Remove dots: 13.0 -> 130
           CUDA_ARCH="${{ env.TORCH_CUDA_ARCH_LIST }}"
           CUDA_ARCH="${CUDA_ARCH//./}"  # Remove dots: 8.9 -> 89
-          SYSTEM_ARCH=$(uname -m)  # e.g., x86_64
-          VERSION_SUFFIX="+cu${CUDA_SHORT_VERSION}sm${CUDA_ARCH}-${SYSTEM_ARCH}"
+          VERSION_SUFFIX="+cu${CUDA_SHORT_VERSION}sm${CUDA_ARCH}"
 
           # Check if version already has the correct metadata
           if grep -q "${VERSION_SUFFIX}" setup.py; then
