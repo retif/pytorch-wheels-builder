@@ -86,6 +86,18 @@ The swap configuration is in the workflow:
     sudo swapon /swapfile
 ```
 
+## CuPy Special Notes
+
+CuPy has different version requirements for different Python versions:
+
+1. **Python 3.13**: Uses CuPy v13.6.0 (stable)
+2. **Python 3.14**: Uses CuPy v14.0.0rc1 (release candidate)
+   - Python 3.14 support was added in CuPy v14
+   - As of February 2026, v14 stable is not yet released, so we use v14.0.0rc1
+   - Update to stable v14.0.0 when available
+
+**Important**: CuPy v13.x does NOT support Python 3.14. The py314 workflow will fail if you try to build v13.6.0.
+
 ## Version Metadata in Wheels
 
 - **Nunchaku**: `nunchaku-1.0.2+torch2.10-cp313-cp313-linux_x86_64.whl`

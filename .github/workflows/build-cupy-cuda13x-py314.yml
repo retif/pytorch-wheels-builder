@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       cupy_version:
-        description: 'CuPy version to build'
+        description: 'CuPy version to build (v14+ required for Python 3.14)'
         required: true
-        default: '13.6.0'
+        default: '14.0.0rc1'
       pytorch_version:
         description: 'PyTorch version (for consistency with other builds)'
         required: true
@@ -80,7 +80,7 @@ jobs:
         run: |
           git clone --recursive https://github.com/cupy/cupy.git
           cd cupy
-          git checkout v${{ inputs.cupy_version || '13.6.0' }} || git checkout main
+          git checkout v${{ inputs.cupy_version || '14.0.0rc1' }} || git checkout main
           git submodule update --init --recursive
           echo "Building from commit: $(git rev-parse HEAD)"
 
@@ -136,8 +136,8 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: cupy-cuda13x-v${{ inputs.cupy_version || '13.6.0' }}-py314-torch${{ inputs.pytorch_version || '2.10.0' }}-cu130
-          name: CuPy-CUDA13x v${{ inputs.cupy_version || '13.6.0' }} Wheel for Python ${{ env.PYTHON_VERSION }} + PyTorch ${{ inputs.pytorch_version || '2.10.0' }} + CUDA ${{ env.CUDA_VERSION }}
+          tag_name: cupy-cuda13x-v${{ inputs.cupy_version || '14.0.0rc1' }}-py314-torch${{ inputs.pytorch_version || '2.10.0' }}-cu130
+          name: CuPy-CUDA13x v${{ inputs.cupy_version || '14.0.0rc1' }} Wheel for Python ${{ env.PYTHON_VERSION }} + PyTorch ${{ inputs.pytorch_version || '2.10.0' }} + CUDA ${{ env.CUDA_VERSION }}
           body: |
             Built with:
             - Python: ${{ env.PYTHON_VERSION }}
@@ -154,7 +154,7 @@ jobs:
             Or directly from this release:
 
             ```bash
-            pip install https://github.com/${{ github.repository }}/releases/download/cupy-cuda13x-v${{ inputs.cupy_version || '13.6.0' }}-py314-torch${{ inputs.pytorch_version || '2.10.0' }}-cu130/${{ steps.wheel_name.outputs.wheel_name }}
+            pip install https://github.com/${{ github.repository }}/releases/download/cupy-cuda13x-v${{ inputs.cupy_version || '14.0.0rc1' }}-py314-torch${{ inputs.pytorch_version || '2.10.0' }}-cu130/${{ steps.wheel_name.outputs.wheel_name }}
             ```
 
             ## Notes
