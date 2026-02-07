@@ -96,11 +96,14 @@ jobs:
             sed -i 's/sm_targets = \[\]/sm_targets = [line.strip() for line in os.environ.get("TORCH_CUDA_ARCH_LIST", "").split(",") if line.strip()] if os.environ.get("TORCH_CUDA_ARCH_LIST") else []/' setup.py
           fi
 
-          # Inject CUDA and PyTorch version into package version string
+          # Inject CUDA version, GPU arch, system arch, and PyTorch version into package version string
           PYTORCH_VERSION="${{ inputs.pytorch_version || '2.10.0' }}"
           CUDA_SHORT_VERSION="${{ env.CUDA_VERSION }}"
           CUDA_SHORT_VERSION="${CUDA_SHORT_VERSION//./}"  # Remove dots: 13.0 -> 130
-          VERSION_SUFFIX="+cu${CUDA_SHORT_VERSION}torch${PYTORCH_VERSION}"
+          CUDA_ARCH="${{ env.TORCH_CUDA_ARCH_LIST }}"
+          CUDA_ARCH="${CUDA_ARCH//./}"  # Remove dots: 8.9 -> 89
+          SYSTEM_ARCH=$(uname -m)  # e.g., x86_64
+          VERSION_SUFFIX="+cu${CUDA_SHORT_VERSION}sm${CUDA_ARCH}-${SYSTEM_ARCH}-torch${PYTORCH_VERSION}"
 
           # Check if version already has the correct metadata
           if grep -q "${VERSION_SUFFIX}" setup.py; then
