@@ -1,6 +1,6 @@
 # PyTorch Wheels Builder
 
-Custom binary wheels for Python 3.13 + CUDA 13.0
+Custom binary wheels for Python 3.13/3.14 + PyTorch 2.10.0 + CUDA 13.0
 
 This repository contains GitHub Actions workflows to build optimized binary wheels for:
 - **Nunchaku**: High-performance inference optimization
@@ -17,7 +17,7 @@ These wheels are compiled with **CUDA Compute Capability 8.9**, optimized for:
 
 ## Why This Exists
 
-As of February 2026, official binary wheels for Python 3.13 + CUDA 13.0 are not available for these packages. This repository builds them from source using GitHub Actions with CUDA 13.0 toolkit installed.
+As of February 2026, official binary wheels for Python 3.13/3.14 + PyTorch 2.10.0 + CUDA 13.0 are not available for these packages. This repository builds them from source using GitHub Actions with CUDA 13.0 toolkit installed.
 
 ## Structure
 
@@ -37,28 +37,41 @@ As of February 2026, official binary wheels for Python 3.13 + CUDA 13.0 are not 
 ## Built Wheels
 
 Wheels are published as GitHub Releases with tags:
-- `nunchaku-v{version}-py313-cu130`
-- `flash-attn-v{version}-py313-cu130`
-- `sageattention-v{version}-py313-cu130`
+- `nunchaku-v{version}-py{313|314}-torch{pytorch_version}-cu130`
+- `flash-attn-v{version}-py{313|314}-torch{pytorch_version}-cu130`
+- `sageattention-v{version}-py{313|314}-torch{pytorch_version}-cu130`
 
 ## Usage
 
 ### Install from GitHub Releases
 
+**Python 3.13:**
 ```bash
 # Nunchaku
-pip install https://github.com/retif/pytorch-wheels-builder/releases/download/nunchaku-v1.0.2-py313-cu130/nunchaku-1.0.2+torch2.10-cp313-cp313-linux_x86_64.whl
+pip install https://github.com/retif/pytorch-wheels-builder/releases/download/nunchaku-v1.0.2-py313-torch2.10.0-cu130/nunchaku-1.0.2+torch2.10-cp313-cp313-linux_x86_64.whl
 
 # Flash Attention
-pip install https://github.com/retif/pytorch-wheels-builder/releases/download/flash-attn-v2.8.2-py313-cu130/flash_attn-2.8.2+cu130torch2.10-cp313-cp313-linux_x86_64.whl
+pip install https://github.com/retif/pytorch-wheels-builder/releases/download/flash-attn-v2.8.2-py313-torch2.10.0-cu130/flash_attn-2.8.2-cp313-cp313-linux_x86_64.whl
 
 # SageAttention
-pip install https://github.com/retif/pytorch-wheels-builder/releases/download/sageattention-v2.2.0-py313-cu130/sageattention-2.2.0-cp313-cp313-linux_x86_64.whl
+pip install https://github.com/retif/pytorch-wheels-builder/releases/download/sageattention-v2.2.0-py313-torch2.10.0-cu130/sageattention-2.2.0+cu130torch2.10.0-cp313-cp313-linux_x86_64.whl
+```
+
+**Python 3.14:**
+```bash
+# Nunchaku
+pip install https://github.com/retif/pytorch-wheels-builder/releases/download/nunchaku-v1.0.2-py314-torch2.10.0-cu130/nunchaku-1.0.2+torch2.10-cp314-cp314-linux_x86_64.whl
+
+# Flash Attention
+pip install https://github.com/retif/pytorch-wheels-builder/releases/download/flash-attn-v2.8.2-py314-torch2.10.0-cu130/flash_attn-2.8.2-cp314-cp314-linux_x86_64.whl
+
+# SageAttention
+pip install https://github.com/retif/pytorch-wheels-builder/releases/download/sageattention-v2.2.0-py314-torch2.10.0-cu130/sageattention-2.2.0+cu130torch2.10.0-cp314-cp314-linux_x86_64.whl
 ```
 
 ### Build Configuration
 
-- **Python**: 3.13.11
+- **Python**: 3.13.11 / 3.14.x
 - **CUDA**: 13.0.88 toolkit
 - **PyTorch**: 2.10.0+cu130
 - **CUDA Compute Capability**: 8.9 (Ada Lovelace)
@@ -74,8 +87,9 @@ To build for different GPU architectures, modify `TORCH_CUDA_ARCH_LIST` in the w
 
 The workflows use:
 - **ubuntu-latest** with CUDA toolkit installed
-- **Python 3.13** from actions/setup-python
-- **cibuildwheel** for building manylinux wheels
+- **Python 3.13 / 3.14** from actions/setup-python
+- **16GB swap** for Flash Attention compilation (prevents OOM)
+- **setuptools** for building manylinux wheels
 
 ## Triggers
 
