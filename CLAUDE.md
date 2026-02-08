@@ -12,12 +12,13 @@ This repository builds custom binary wheels for Python 3.13/3.14 + PyTorch 2.10.
 ├── build-flash-attention-py314.yml # Python 3.14 build
 ├── build-sageattention-py313.yml   # Python 3.13 build
 ├── build-sageattention-py314.yml   # Python 3.14 build
-├── build-cupy-cuda13x-py313.yml       # Python 3.13 build
-├── build-cupy-cuda13x-py314.yml       # Python 3.14 build (GIL)
-├── build-cupy-cuda13x-py314t.yml      # Python 3.14t build (free-threaded)
-├── build-opencv-python-py314t.yml     # Python 3.14t build (free-threaded, CPU-only)
-├── build-opencv-python-py314-cu130.yml # Python 3.14 build (GIL, CUDA 13.0)
-└── build-llvmlite-py314t.yml          # Python 3.14t build (free-threaded)
+├── build-cupy-cuda13x-py313.yml         # Python 3.13 build
+├── build-cupy-cuda13x-py314.yml         # Python 3.14 build (GIL)
+├── build-cupy-cuda13x-py314t.yml        # Python 3.14t build (free-threaded)
+├── build-opencv-python-py314t-cpu.yml   # Python 3.14t build (free-threaded, CPU-only)
+├── build-opencv-python-py314t-cu130.yml # Python 3.14t build (free-threaded, CUDA 13.0)
+├── build-opencv-python-py314-cu130.yml  # Python 3.14 build (GIL, CUDA 13.0)
+└── build-llvmlite-py314t.yml            # Python 3.14t build (free-threaded)
 ```
 
 ## Release Tag Format
@@ -76,7 +77,8 @@ gh workflow run build-cupy-cuda13x-py314.yml
 
 # Python 3.14t (Free-threaded)
 gh workflow run build-cupy-cuda13x-py314t.yml
-gh workflow run build-opencv-python-py314t.yml  # CPU-only
+gh workflow run build-opencv-python-py314t-cpu.yml  # CPU-only
+gh workflow run build-opencv-python-py314t-cu130.yml  # CUDA 13.0
 gh workflow run build-llvmlite-py314t.yml
 
 # Python 3.14 with CUDA 13.0
@@ -87,7 +89,7 @@ gh workflow run build-opencv-python-py314-cu130.yml
 Workflows run weekly on Monday:
 - Python 3.13: 00:00 (Nunchaku), 02:00 (Flash), 04:00 (Sage), 06:00 (CuPy)
 - Python 3.14 (GIL): 01:00 (Nunchaku), 03:00 (Flash), 05:00 (Sage), 08:00 (CuPy), 11:00 (OpenCV+CUDA)
-- Python 3.14t (Free-threaded): 07:00 (CuPy), 09:00 (OpenCV CPU), 10:00 (llvmlite)
+- Python 3.14t (Free-threaded): 07:00 (CuPy), 09:00 (OpenCV CPU), 10:00 (llvmlite), 12:00 (OpenCV+CUDA)
 
 ## Build Times
 
@@ -134,30 +136,41 @@ CuPy has different version requirements for different Python versions:
 
 ## OpenCV-Python Special Notes
 
-OpenCV-Python has two separate workflows:
+OpenCV-Python has **three** separate workflows:
 
 ### 1. CPU-Only Build (Python 3.14t Free-threaded)
-- **Workflow**: `build-opencv-python-py314t.yml`
-- **Release tag**: `opencv-python-v{version}-py314t`
+- **Workflow**: `build-opencv-python-py314t-cpu.yml`
+- **Release tag**: `opencv-python-v{version}-py314t-cpu`
 - **No PyTorch/CUDA dependency**: CPU-only for simplicity and compatibility
 - **Benefits**: Simpler build, faster compilation (~15-20 minutes)
 - **Use case**: Free-threaded Python's main benefit is CPU parallelism
+- **Status**: ❌ Blocked by upstream ADE library C++ compatibility issue
 - Built with `-DWITH_CUDA=OFF`
 
-### 2. CUDA Build (Python 3.14 with GIL)
+### 2. CUDA Build (Python 3.14t Free-threaded)
+- **Workflow**: `build-opencv-python-py314t-cu130.yml`
+- **Release tag**: `opencv-python-v{version}-py314t-cu130`
+- **CUDA 13.0 support**: GPU acceleration via `cv2.cuda` module
+- **C++17 required**: CUDA 13.0 Thrust library requires C++17 standard
+- **Longer build**: ~30-45 minutes due to CUDA compilation
+- **Status**: ⚠️ Untested (may have same ADE compatibility issues)
+- Requires opencv_contrib for cudev module
+
+### 3. CUDA Build (Python 3.14 with GIL)
 - **Workflow**: `build-opencv-python-py314-cu130.yml`
 - **Release tag**: `opencv-python-v{version}-py314-cu130`
 - **CUDA 13.0 support**: GPU acceleration via `cv2.cuda` module
 - **C++17 required**: CUDA 13.0 Thrust library requires C++17 standard
 - **Longer build**: ~30-45 minutes due to CUDA compilation
+- **Status**: 🔄 Currently testing (should work better than py314t)
 - Requires opencv_contrib for cudev module
 
 ### Common Notes
 1. **No PyTorch Dependency**: OpenCV doesn't depend on PyTorch
 2. **Build System**: Uses scikit-build with CMake
    - Requires system dependencies (GTK, video codecs, etc.)
-3. **Python 3.14 only**: Standard Python 3.13/3.14 wheels available from PyPI
-   - These custom builds fill gaps for CUDA 13.0 support
+3. **Python 3.14 Compatibility**: Standard Python 3.14 (GIL) has better C++ library compatibility than free-threaded
+4. **Upstream Issue**: Free-threaded builds blocked by missing `#include <cstdint>` in ADE library
 
 ## llvmlite Special Notes
 
@@ -184,8 +197,9 @@ llvmlite is different from the other packages:
 - **Flash Attention**: `flash_attn-2.8.2-cp313-cp313-linux_x86_64.whl` (no metadata - not patched)
 - **CuPy-CUDA13x**: `cupy_cuda13x-13.6.0+cu130sm89-cp313-cp313-linux_x86_64.whl`
 - **CuPy-CUDA13x (py314t)**: `cupy_cuda13x-14.0.0rc1+cu130sm89-cp314t-cp314t-linux_x86_64.whl`
-- **OpenCV-Python (py314t)**: `opencv_python-4.11.0.92-cp314t-cp314t-linux_x86_64.whl` (no version metadata - CPU-only)
-- **OpenCV-Python (py314+CUDA)**: `opencv_python-4.11.0.92+cu130sm89-cp314-cp314-linux_x86_64.whl`
+- **OpenCV-Python (py314t CPU)**: `opencv_python-4.11.0.92-cp314t-cp314t-linux_x86_64.whl` (no version metadata)
+- **OpenCV-Python (py314t CUDA)**: `opencv_python-4.11.0.92+cu130sm89-cp314t-cp314t-linux_x86_64.whl`
+- **OpenCV-Python (py314 CUDA)**: `opencv_python-4.11.0.92+cu130sm89-cp314-cp314-linux_x86_64.whl`
 - **llvmlite (py314t)**: `llvmlite-0.44.0+llvm15-cp314t-cp314t-linux_x86_64.whl`
 
 Nunchaku, SageAttention, CuPy, OpenCV-Python, and llvmlite have version injection patches in their workflows that add comprehensive metadata:
