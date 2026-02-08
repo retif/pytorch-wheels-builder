@@ -1,4 +1,4 @@
-name: Build OpenCV-Python Wheel (Python 3.14t Free-threaded)
+name: Build OpenCV-Python Wheel (Python 3.14 + CUDA 13.0)
 
 on:
   workflow_dispatch:
@@ -8,11 +8,13 @@ on:
         required: true
         default: '4.11.0.92'
   schedule:
-    # Run weekly on Monday at 09:00 UTC
-    - cron: '0 9 * * 1'
+    # Run weekly on Monday at 11:00 UTC
+    - cron: '0 11 * * 1'
 
 env:
-  PYTHON_VERSION: '3.14t'  # Free-threaded Python (cp314t)
+  PYTHON_VERSION: '3.14'  # Standard Python with GIL (cp314)
+  CUDA_VERSION: '13.0'
+  TORCH_CUDA_ARCH_LIST: '8.9'  # RTX 4090
 
 permissions:
   contents: write
@@ -32,24 +34,50 @@ jobs:
           sudo rm -rf /usr/local/share/boost
           df -h
 
-      - name: Set up Python ${{ env.PYTHON_VERSION }} (free-threaded)
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.14t'  # Free-threaded Python (no GIL) - cp314t
+          python-version: '3.14.2'  # Standard Python with GIL (cp314)
           architecture: 'x64'
           allow-prereleases: true
 
+      - name: Install CUDA 13.0 Toolkit
+        run: |
+          # Add NVIDIA CUDA repository (Ubuntu 22.04)
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
 
-      - name: Verify Python configuration (free-threaded)
+          # Install CUDA 13.0 packages (both dev and runtime)
+          sudo apt-get install -y \
+            cuda-toolkit-13-0 \
+            cuda-runtime-13-0 \
+            cuda-libraries-13-0 \
+            cuda-libraries-dev-13-0
+
+          # Set environment variables
+          echo "CUDA_HOME=/usr/local/cuda-13.0" >> $GITHUB_ENV
+          echo "PATH=/usr/local/cuda-13.0/bin:$PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/usr/local/cuda-13.0/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+      - name: Verify CUDA installation
+        run: |
+          /usr/local/cuda-13.0/bin/nvcc --version
+          echo "CUDA_HOME=$CUDA_HOME"
+          echo ""
+          echo "Compiler versions:"
+          gcc --version | head -1
+          g++ --version | head -1
+
+      - name: Verify Python configuration
         run: |
           python --version
           python -c "import sys; print(f'Python: {sys.version}')"
           python -c "import sys; print(f'ABI tag: {sys.abiflags}')"
           python -c "import sysconfig; print(f'Platform tag: {sysconfig.get_platform()}')"
-          # Verify we have free-threaded Python (no GIL) - should show 't' in abiflags
-          python -c "import sys; print(f'ABI flags: {sys.abiflags}')"
-          python -c "import sys; gil_disabled = not getattr(sys, '_is_gil_enabled', lambda: True)(); print(f'Free-threaded (GIL disabled): {gil_disabled}'); exit(0 if gil_disabled else 1)"
-          echo "✓ Confirmed: Building for free-threaded Python (cp314t)"
+          # Verify we have standard Python with GIL (cp314, not cp314t)
+          python -c "import sys; gil_enabled = getattr(sys, '_is_gil_enabled', lambda: True)(); print(f'GIL enabled: {gil_enabled}'); exit(0 if gil_enabled else 1)"
+          echo "✓ Confirmed: Building for standard Python with GIL (cp314)"
 
       - name: Install system dependencies for OpenCV
         run: |
@@ -85,6 +113,17 @@ jobs:
           git submodule update --init --recursive
           echo "Building from commit: $(git rev-parse HEAD)"
 
+      - name: Clone opencv_contrib repository (required for CUDA support)
+        run: |
+          # Clone opencv_contrib - required for cudev module when building with CUDA
+          git clone https://github.com/opencv/opencv_contrib.git
+          cd opencv_contrib
+          # Get the corresponding opencv version from opencv-python/opencv submodule
+          OPENCV_VERSION=$(cd ../opencv-python/opencv && git describe --tags --always)
+          echo "OpenCV version: $OPENCV_VERSION"
+          # Try to checkout the same version/tag, fall back to master if not found
+          git checkout "$OPENCV_VERSION" 2>/dev/null || git checkout master
+          echo "Building opencv_contrib from commit: $(git rev-parse HEAD)"
 
       - name: Patch setup.py for version metadata
         run: |
@@ -108,15 +147,20 @@ jobs:
             echo "Patched version to include: ${VERSION_SUFFIX}"
           fi
 
-      - name: Build opencv-python wheel (CPU-only)
+      - name: Build opencv-python wheel with CUDA support
         run: |
+          # Set absolute path to opencv_contrib modules for CUDA support
+          OPENCV_CONTRIB_PATH="$(pwd)/opencv_contrib/modules"
+          echo "OpenCV contrib modules path: $OPENCV_CONTRIB_PATH"
+
           cd opencv-python
-          # Build CPU-only version (CUDA compilation has C++17 requirements that complicate free-threaded builds)
-          # Free-threaded Python's main benefit is CPU parallelism anyway
-          export CMAKE_ARGS="-DWITH_CUDA=OFF"
-          export ENABLE_CONTRIB=0
+          # Build with CUDA support and C++17 standard (required by CUDA 13.0 Thrust)
+          export CMAKE_ARGS="-DCMAKE_CXX_STANDARD=17 -DWITH_CUDA=ON -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-13.0 -DCUDA_ARCH_BIN=${{ env.TORCH_CUDA_ARCH_LIST }} -DWITH_CUBLAS=ON -DWITH_CUDNN=OFF -DOPENCV_EXTRA_MODULES_PATH=$OPENCV_CONTRIB_PATH"
+          export ENABLE_CONTRIB=1
           export ENABLE_HEADLESS=0
           python setup.py bdist_wheel
+        env:
+          CUDA_HOME: ${{ env.CUDA_HOME }}
 
       - name: List built wheels
         run: |
@@ -126,7 +170,7 @@ jobs:
         run: |
           pip install opencv-python/dist/*.whl
           python -c "import cv2; print(f'OpenCV version: {cv2.__version__}')"
-          python -c "import cv2; print('OpenCV imported successfully (CPU-only build)')"
+          python -c "import cv2; print(f'CUDA available: {cv2.cuda.getCudaEnabledDeviceCount() > 0 if hasattr(cv2, \"cuda\") else False}')"
 
       - name: Get wheel name
         id: wheel_name
@@ -140,16 +184,16 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: opencv-python-v${{ inputs.opencv_version || '4.11.0.92' }}-py314t
-          name: OpenCV-Python v${{ inputs.opencv_version || '4.11.0.92' }} Wheel for Python ${{ env.PYTHON_VERSION }} (Free-threaded)
+          tag_name: opencv-python-v${{ inputs.opencv_version || '4.11.0.92' }}-py314-cu130
+          name: OpenCV-Python v${{ inputs.opencv_version || '4.11.0.92' }} Wheel for Python ${{ env.PYTHON_VERSION }} + CUDA ${{ env.CUDA_VERSION }}
           body: |
             Built with:
-            - Python: ${{ env.PYTHON_VERSION }} (Free-threaded, no GIL - cp314t)
-            - CPU-only build (no CUDA support)
+            - Python: ${{ env.PYTHON_VERSION }} (standard with GIL - cp314)
+            - CUDA: ${{ env.CUDA_VERSION }}
+            - CUDA Arch: ${{ env.TORCH_CUDA_ARCH_LIST }}
+            - C++ Standard: 17 (required by CUDA 13.0)
 
             ## Installation
-
-            **Note:** This wheel is built for free-threaded Python 3.14 (cp314t). You need Python 3.14t installed.
 
             ```bash
             pip install ${{ steps.wheel_name.outputs.wheel_name }}
@@ -158,14 +202,15 @@ jobs:
             Or directly from this release:
 
             ```bash
-            pip install https://github.com/${{ github.repository }}/releases/download/opencv-python-v${{ inputs.opencv_version || '4.11.0.92' }}-py314t/${{ steps.wheel_name.outputs.wheel_name }}
+            pip install https://github.com/${{ github.repository }}/releases/download/opencv-python-v${{ inputs.opencv_version || '4.11.0.92' }}-py314-cu130/${{ steps.wheel_name.outputs.wheel_name }}
             ```
 
             ## Notes
 
             OpenCV (Open Source Computer Vision Library) is an open-source computer vision and machine learning software library.
-            This wheel is built for **free-threaded Python 3.14t** (experimental, no GIL) as a CPU-only build.
-            For GPU acceleration, use standard Python 3.14 with CUDA-enabled opencv-python builds.
+            This wheel is built for **standard Python 3.14** (with GIL) and includes CUDA ${{ env.CUDA_VERSION }} support for GPU acceleration.
+
+            CUDA operations are available via the `cv2.cuda` module.
           files: ${{ steps.wheel_name.outputs.wheel_path }}
           draft: false
           prerelease: false
@@ -176,6 +221,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: opencv-python-py314t
+          name: opencv-python-py314-cu${{ env.CUDA_VERSION }}
           path: ${{ steps.wheel_name.outputs.wheel_path }}
           retention-days: 30
