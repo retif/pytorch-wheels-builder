@@ -13,14 +13,20 @@ This repository builds custom binary wheels for Python 3.13/3.14 + PyTorch 2.10.
 ├── build-sageattention-py313.yml   # Python 3.13 build
 ├── build-sageattention-py314.yml   # Python 3.14 build
 ├── build-cupy-cuda13x-py313.yml    # Python 3.13 build
-└── build-cupy-cuda13x-py314.yml    # Python 3.14 build
+├── build-cupy-cuda13x-py314.yml    # Python 3.14 build (GIL)
+├── build-cupy-cuda13x-py314t.yml   # Python 3.14t build (free-threaded)
+└── build-opencv-python-py314t.yml  # Python 3.14t build (free-threaded)
 ```
 
 ## Release Tag Format
 
 **IMPORTANT**: All releases must use this tag format:
 ```
-{package}-v{version}-py{313|314}-torch{pytorch_version}-cu130
+# For PyTorch-dependent packages:
+{package}-v{version}-py{313|314|314t}-torch{pytorch_version}-cu130
+
+# For non-PyTorch packages (opencv-python):
+{package}-v{version}-py{314t}-cu130
 ```
 
 Examples:
@@ -28,15 +34,23 @@ Examples:
 - `flash-attn-v2.8.2-py314-torch2.10.0-cu130`
 - `sageattention-v2.2.0-py313-torch2.10.0-cu130`
 - `cupy-cuda13x-v13.6.0-py314-torch2.10.0-cu130`
+- `cupy-cuda13x-v14.0.0rc1-py314t-torch2.10.0-cu130` (free-threaded)
+- `opencv-python-v4.11.0.92-py314t-cu130` (free-threaded, no PyTorch)
 
 ## Release Title Format
 
 ```
-{Package} v{version} Wheel for Python {3.13|3.14} + PyTorch {version} + CUDA 13.0
+# For PyTorch-dependent packages:
+{Package} v{version} Wheel for Python {3.13|3.14|3.14t} + PyTorch {version} + CUDA 13.0
+
+# For free-threaded Python:
+{Package} v{version} Wheel for Python {3.14t} (Free-threaded) + CUDA 13.0
 ```
 
-Example:
+Examples:
 - `SageAttention v2.2.0 Wheel for Python 3.13 + PyTorch 2.10.0 + CUDA 13.0`
+- `CuPy-CUDA13x v14.0.0rc1 Wheel for Python 3.14t (Free-threaded) + PyTorch 2.10.0 + CUDA 13.0`
+- `OpenCV-Python v4.11.0.92 Wheel for Python 3.14t (Free-threaded) + CUDA 13.0`
 
 ## Triggering Builds
 
@@ -48,24 +62,30 @@ gh workflow run build-sageattention-py313.yml
 gh workflow run build-flash-attention-py313.yml
 gh workflow run build-cupy-cuda13x-py313.yml
 
-# Python 3.14
+# Python 3.14 (GIL)
 gh workflow run build-nunchaku-py314.yml
 gh workflow run build-sageattention-py314.yml
 gh workflow run build-flash-attention-py314.yml
 gh workflow run build-cupy-cuda13x-py314.yml
+
+# Python 3.14t (Free-threaded)
+gh workflow run build-cupy-cuda13x-py314t.yml
+gh workflow run build-opencv-python-py314t.yml
 ```
 
 ### Schedule
 Workflows run weekly on Monday:
 - Python 3.13: 00:00 (Nunchaku), 02:00 (Flash), 04:00 (Sage), 06:00 (CuPy)
-- Python 3.14: 01:00 (Nunchaku), 03:00 (Flash), 05:00 (Sage), 07:00 (CuPy)
+- Python 3.14 (GIL): 01:00 (Nunchaku), 03:00 (Flash), 05:00 (Sage), 08:00 (CuPy)
+- Python 3.14t (Free-threaded): 07:00 (CuPy), 09:00 (OpenCV)
 
 ## Build Times
 
 - **Nunchaku**: ~25 minutes
 - **SageAttention**: ~9 minutes
 - **Flash Attention**: ~5.5 hours (uses 16GB swap to prevent OOM)
-- **CuPy-CUDA13x**: ~15-20 minutes (estimated)
+- **CuPy-CUDA13x**: ~15-20 minutes
+- **OpenCV-Python**: ~30-45 minutes (estimated)
 
 ## Flash Attention Special Notes
 
@@ -91,12 +111,31 @@ The swap configuration is in the workflow:
 CuPy has different version requirements for different Python versions:
 
 1. **Python 3.13**: Uses CuPy v13.6.0 (stable)
-2. **Python 3.14**: Uses CuPy v14.0.0rc1 (release candidate)
+2. **Python 3.14 (GIL)**: Uses CuPy v14.0.0rc1 (release candidate)
    - Python 3.14 support was added in CuPy v14
    - As of February 2026, v14 stable is not yet released, so we use v14.0.0rc1
    - Update to stable v14.0.0 when available
+3. **Python 3.14t (Free-threaded)**: Uses CuPy v14.0.0rc1 (release candidate)
+   - Builds without fastrlock due to Cython compatibility issues with GIL-free Python
+   - See TODO in workflow to re-enable fastrlock when cp314t support is available
 
 **Important**: CuPy v13.x does NOT support Python 3.14. The py314 workflow will fail if you try to build v13.6.0.
+
+## OpenCV-Python Special Notes
+
+OpenCV-Python is different from the other packages:
+
+1. **No PyTorch Dependency**: OpenCV is a computer vision library that doesn't depend on PyTorch
+   - Release tags use format: `opencv-python-v{version}-py314t-cu130` (no torch version)
+   - Still benefits from CUDA acceleration for GPU operations
+2. **Python 3.14t Only**: Currently only building for free-threaded Python 3.14t
+   - Standard Python 3.13/3.14 wheels are available from PyPI
+   - Free-threaded builds are experimental and not yet available upstream
+3. **Build System**: Uses scikit-build with CMake, not setuptools
+   - Requires system dependencies (GTK, video codecs, etc.)
+   - Build takes longer than pure Python packages (~30-45 minutes)
+4. **CUDA Support**: Built with `-DWITH_CUDA=ON` for GPU acceleration
+   - CUDA ops available via `cv2.cuda` module
 
 ## Version Metadata in Wheels
 
@@ -104,15 +143,18 @@ CuPy has different version requirements for different Python versions:
 - **SageAttention**: `sageattention-2.2.0+cu130sm89torch2.10.0-cp313-cp313-linux_x86_64.whl`
 - **Flash Attention**: `flash_attn-2.8.2-cp313-cp313-linux_x86_64.whl` (no metadata - not patched)
 - **CuPy-CUDA13x**: `cupy_cuda13x-13.6.0+cu130sm89-cp313-cp313-linux_x86_64.whl`
+- **CuPy-CUDA13x (py314t)**: `cupy_cuda13x-14.0.0rc1+cu130sm89-cp314t-cp314t-linux_x86_64.whl`
+- **OpenCV-Python (py314t)**: `opencv_python-4.11.0.92+cu130sm89-cp314t-cp314t-linux_x86_64.whl`
 
-Nunchaku, SageAttention, and CuPy have version injection patches in their workflows that add comprehensive metadata:
+Nunchaku, SageAttention, CuPy, and OpenCV-Python have version injection patches in their workflows that add comprehensive metadata:
 - **Format**: `+cu{CUDA_VER}sm{GPU_ARCH}torch{PYTORCH_VER}` (for PyTorch-dependent packages)
-- **Format**: `+cu{CUDA_VER}sm{GPU_ARCH}` (for CuPy)
+- **Format**: `+cu{CUDA_VER}sm{GPU_ARCH}` (for CuPy and OpenCV-Python)
 - **Example**: `+cu130sm89torch2.10.0`
   - `cu130` = CUDA 13.0
   - `sm89` = SM 8.9 GPU architecture (RTX 4090)
   - `torch2.10.0` = PyTorch version (if applicable)
 - **Note**: System architecture (x86_64) is automatically included in the platform tag at the end of the wheel name
+- **Free-threaded Python**: Wheels use `cp314t` tag instead of `cp314` to indicate GIL-free Python
 
 ## Updating Package Versions
 
@@ -158,9 +200,12 @@ After adding new package versions, update:
 ## Python Versions
 
 - **Python 3.13**: 3.13.11
-- **Python 3.14**: 3.14.2
+- **Python 3.14** (GIL): 3.14.2
+- **Python 3.14t** (Free-threaded): 3.14.x (free-threaded build without GIL)
 
 These are set by `actions/setup-python` and may auto-update to patch releases.
+
+**Free-threaded Python (3.14t)**: Experimental Python build with the GIL removed (PEP 703). Requires special builds of all C extensions. Wheels built for cp314t are NOT compatible with standard cp314.
 
 ## Build Configuration
 
@@ -222,3 +267,4 @@ Workflows need:
 - **Flash Attention**: https://github.com/Dao-AILab/flash-attention
 - **SageAttention**: https://github.com/thu-ml/SageAttention
 - **CuPy**: https://github.com/cupy/cupy
+- **OpenCV-Python**: https://github.com/opencv/opencv-python

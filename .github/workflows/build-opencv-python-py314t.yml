@@ -1,0 +1,209 @@
+name: Build OpenCV-Python Wheel (Python 3.14t Free-threaded)
+
+on:
+  workflow_dispatch:
+    inputs:
+      opencv_version:
+        description: 'OpenCV version to build'
+        required: true
+        default: '4.11.0.92'
+  schedule:
+    # Run weekly on Monday at 09:00 UTC
+    - cron: '0 9 * * 1'
+
+env:
+  PYTHON_VERSION: '3.14t'  # Free-threaded Python (cp314t)
+  CUDA_VERSION: '13.0'
+  TORCH_CUDA_ARCH_LIST: '8.9'  # RTX 4090
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          df -h
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }} (free-threaded)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14t'  # Free-threaded Python (no GIL) - cp314t
+          architecture: 'x64'
+          allow-prereleases: true
+
+      - name: Install CUDA 13.0 Toolkit
+        run: |
+          # Add NVIDIA CUDA repository (Ubuntu 22.04)
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
+
+          # Install CUDA 13.0 packages (both dev and runtime)
+          sudo apt-get install -y \
+            cuda-toolkit-13-0 \
+            cuda-runtime-13-0 \
+            cuda-libraries-13-0 \
+            cuda-libraries-dev-13-0
+
+          # Set environment variables
+          echo "CUDA_HOME=/usr/local/cuda-13.0" >> $GITHUB_ENV
+          echo "PATH=/usr/local/cuda-13.0/bin:$PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/usr/local/cuda-13.0/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+      - name: Verify CUDA installation
+        run: |
+          /usr/local/cuda-13.0/bin/nvcc --version
+          echo "CUDA_HOME=$CUDA_HOME"
+          echo ""
+          echo "Compiler versions:"
+          gcc --version | head -1
+          g++ --version | head -1
+
+      - name: Verify Python configuration (free-threaded)
+        run: |
+          python --version
+          python -c "import sys; print(f'Python: {sys.version}')"
+          python -c "import sys; print(f'ABI tag: {sys.abiflags}')"
+          python -c "import sysconfig; print(f'Platform tag: {sysconfig.get_platform()}')"
+          # Verify we have free-threaded Python (no GIL) - should show 't' in abiflags
+          python -c "import sys; print(f'ABI flags: {sys.abiflags}')"
+          python -c "import sys; gil_disabled = not getattr(sys, '_is_gil_enabled', lambda: True)(); print(f'Free-threaded (GIL disabled): {gil_disabled}'); exit(0 if gil_disabled else 1)"
+          echo "✓ Confirmed: Building for free-threaded Python (cp314t)"
+
+      - name: Install system dependencies for OpenCV
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            libgtk-3-dev \
+            libavcodec-dev \
+            libavformat-dev \
+            libswscale-dev \
+            libv4l-dev \
+            libxvidcore-dev \
+            libx264-dev \
+            libjpeg-dev \
+            libpng-dev \
+            libtiff-dev \
+            gfortran \
+            openexr \
+            libatlas-base-dev \
+            libtbb-dev \
+            liblapack-dev
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          pip install numpy scikit-build cmake ninja
+
+      - name: Clone opencv-python repository
+        run: |
+          git clone --recursive https://github.com/opencv/opencv-python.git
+          cd opencv-python
+          git checkout ${{ inputs.opencv_version || '92' }} || git checkout master
+          git submodule update --init --recursive
+          echo "Building from commit: $(git rev-parse HEAD)"
+
+      - name: Patch setup.py for version metadata
+        run: |
+          cd opencv-python
+          # Inject CUDA version and GPU architecture into package version string
+          CUDA_SHORT_VERSION="${{ env.CUDA_VERSION }}"
+          CUDA_SHORT_VERSION="${CUDA_SHORT_VERSION//./}"  # Remove dots: 13.0 -> 130
+          CUDA_ARCH="${{ env.TORCH_CUDA_ARCH_LIST }}"
+          CUDA_ARCH="${CUDA_ARCH//./}"  # Remove dots: 8.9 -> 89
+          VERSION_SUFFIX="+cu${CUDA_SHORT_VERSION}sm${CUDA_ARCH}"
+
+          # Check if version already has the correct metadata
+          if grep -q "${VERSION_SUFFIX}" setup.py; then
+            echo "Version already has correct metadata: ${VERSION_SUFFIX}"
+          else
+            # Remove any existing version metadata to avoid duplicates
+            sed -i 's/version=\(['\''"][^+]*\)+[^'\''"]*/version=\1/' setup.py
+
+            # Now add our version metadata
+            sed -i "s/version=\(['\"][^'\"]*['\"\]\)/version=\1.replace('\"', '').replace(\"'\", '') + '${VERSION_SUFFIX}'/" setup.py
+            echo "Patched version to include: ${VERSION_SUFFIX}"
+          fi
+
+      - name: Build opencv-python wheel
+        run: |
+          cd opencv-python
+          export CMAKE_ARGS="-DWITH_CUDA=ON -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-13.0 -DCUDA_ARCH_BIN=${{ env.TORCH_CUDA_ARCH_LIST }} -DWITH_CUBLAS=ON -DWITH_CUDNN=OFF"
+          export ENABLE_CONTRIB=0
+          export ENABLE_HEADLESS=0
+          python setup.py bdist_wheel
+        env:
+          CUDA_HOME: ${{ env.CUDA_HOME }}
+
+      - name: List built wheels
+        run: |
+          ls -lh opencv-python/dist/
+
+      - name: Test wheel installation
+        run: |
+          pip install opencv-python/dist/*.whl
+          python -c "import cv2; print(f'OpenCV version: {cv2.__version__}')"
+          python -c "import cv2; print(f'CUDA available: {cv2.cuda.getCudaEnabledDeviceCount() > 0 if hasattr(cv2, \"cuda\") else False}')"
+
+      - name: Get wheel name
+        id: wheel_name
+        run: |
+          WHEEL_PATH=$(ls opencv-python/dist/*.whl)
+          WHEEL_NAME=$(basename $WHEEL_PATH)
+          echo "wheel_name=$WHEEL_NAME" >> $GITHUB_OUTPUT
+          echo "wheel_path=$WHEEL_PATH" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: opencv-python-v${{ inputs.opencv_version || '4.11.0.92' }}-py314t-cu130
+          name: OpenCV-Python v${{ inputs.opencv_version || '4.11.0.92' }} Wheel for Python ${{ env.PYTHON_VERSION }} (Free-threaded) + CUDA ${{ env.CUDA_VERSION }}
+          body: |
+            Built with:
+            - Python: ${{ env.PYTHON_VERSION }} (Free-threaded, no GIL - cp314t)
+            - CUDA: ${{ env.CUDA_VERSION }}
+            - CUDA Arch: ${{ env.TORCH_CUDA_ARCH_LIST }}
+
+            ## Installation
+
+            **Note:** This wheel is built for free-threaded Python 3.14 (cp314t). You need Python 3.14t installed.
+
+            ```bash
+            pip install ${{ steps.wheel_name.outputs.wheel_name }}
+            ```
+
+            Or directly from this release:
+
+            ```bash
+            pip install https://github.com/${{ github.repository }}/releases/download/opencv-python-v${{ inputs.opencv_version || '4.11.0.92' }}-py314t-cu130/${{ steps.wheel_name.outputs.wheel_name }}
+            ```
+
+            ## Notes
+
+            OpenCV (Open Source Computer Vision Library) is an open-source computer vision and machine learning software library.
+            This wheel is built for **free-threaded Python 3.14t** (experimental, no GIL) with CUDA ${{ env.CUDA_VERSION }} support.
+          files: ${{ steps.wheel_name.outputs.wheel_path }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload wheel as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencv-python-py314t-cu${{ env.CUDA_VERSION }}
+          path: ${{ steps.wheel_name.outputs.wheel_path }}
+          retention-days: 30
