@@ -144,25 +144,24 @@ OpenCV-Python has **three** separate workflows:
 - **No PyTorch/CUDA dependency**: CPU-only for simplicity and compatibility
 - **Benefits**: Simpler build, faster compilation (~15-20 minutes)
 - **Use case**: Free-threaded Python's main benefit is CPU parallelism
-- **Status**: ❌ Blocked by upstream ADE library C++ compatibility issue
+- **Status**: ❌ Blocked by upstream ADE library C++ compatibility issue (missing `#include <cstdint>`)
 - Built with `-DWITH_CUDA=OFF`
 
 ### 2. CUDA Build (Python 3.14t Free-threaded)
 - **Workflow**: `build-opencv-python-py314t-cu130.yml`
 - **Release tag**: `opencv-python-v{version}-py314t-cu130`
-- **CUDA 13.0 support**: GPU acceleration via `cv2.cuda` module
-- **C++17 required**: CUDA 13.0 Thrust library requires C++17 standard
-- **Longer build**: ~30-45 minutes due to CUDA compilation
-- **Status**: ⚠️ Untested (may have same ADE compatibility issues)
+- **Status**: ❌ **CANNOT BUILD** - Two blocking issues:
+  1. ADE library C++ compatibility (same as CPU build)
+  2. opencv_contrib cudev module incompatible with CUDA 13.0 (deprecated texture APIs)
 - Requires opencv_contrib for cudev module
 
 ### 3. CUDA Build (Python 3.14 with GIL)
 - **Workflow**: `build-opencv-python-py314-cu130.yml`
 - **Release tag**: `opencv-python-v{version}-py314-cu130`
-- **CUDA 13.0 support**: GPU acceleration via `cv2.cuda` module
-- **C++17 required**: CUDA 13.0 Thrust library requires C++17 standard
-- **Longer build**: ~30-45 minutes due to CUDA compilation
-- **Status**: 🔄 Currently testing (should work better than py314t)
+- **Status**: ❌ **CANNOT BUILD** - opencv_contrib incompatible with CUDA 13.0
+  - opencv_contrib cudev uses deprecated CUDA texture APIs (`texture<>`, `cudaUnbindTexture`, `textureReference`)
+  - These APIs were removed in CUDA 12.0+
+  - Would need CUDA 11.x or wait for opencv_contrib update
 - Requires opencv_contrib for cudev module
 
 ### Common Notes
@@ -170,7 +169,13 @@ OpenCV-Python has **three** separate workflows:
 2. **Build System**: Uses scikit-build with CMake
    - Requires system dependencies (GTK, video codecs, etc.)
 3. **Python 3.14 Compatibility**: Standard Python 3.14 (GIL) has better C++ library compatibility than free-threaded
-4. **Upstream Issue**: Free-threaded builds blocked by missing `#include <cstdint>` in ADE library
+4. **Upstream Issues**:
+   - **ADE Library**: Free-threaded builds blocked by missing `#include <cstdint>` in ADE library
+   - **CUDA 13.0**: opencv_contrib cudev uses deprecated texture APIs removed in CUDA 12.0+
+     - Errors: `texture is not a template`, `cudaUnbindTexture is undefined`, `textureReference is undefined`
+     - Cannot build ANY opencv-python wheels with CUDA 13.0
+     - Would need CUDA 11.x or updated opencv_contrib
+5. **C++17 Requirement for CUDA**: Must set `-DCMAKE_CXX_STANDARD=17 -DCMAKE_CUDA_STANDARD=17 -DCUDA_NVCC_FLAGS=--std=c++17`
 
 ## llvmlite Special Notes
 
