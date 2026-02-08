@@ -1,10 +1,10 @@
-name: Build CuPy-CUDA13x Wheel (Python 3.14 GIL)
+name: Build CuPy-CUDA13x Wheel (Python 3.14t Free-threaded)
 
 on:
   workflow_dispatch:
     inputs:
       cupy_version:
-        description: 'CuPy version to build (v14+ required for Python 3.14)'
+        description: 'CuPy version to build (v14+ required for Python 3.14t free-threaded)'
         required: true
         default: '14.0.0rc1'
       pytorch_version:
@@ -12,11 +12,11 @@ on:
         required: true
         default: '2.10.0'
   schedule:
-    # Run weekly on Monday at 08:00 UTC (py314t runs at 07:00)
-    - cron: '0 8 * * 1'
+    # Run weekly on Monday at 07:00 UTC
+    - cron: '0 7 * * 1'
 
 env:
-  PYTHON_VERSION: '3.14'
+  PYTHON_VERSION: '3.14t'  # Free-threaded Python (cp314t)
   CUDA_VERSION: '13.0'
   TORCH_CUDA_ARCH_LIST: '8.9'  # RTX 4090
 
@@ -38,10 +38,10 @@ jobs:
           sudo rm -rf /usr/local/share/boost
           df -h
 
-      - name: Set up Python ${{ env.PYTHON_VERSION }} (standard GIL)
+      - name: Set up Python ${{ env.PYTHON_VERSION }} (free-threaded)
         uses: actions/setup-python@v5
         with:
-          python-version: '3.14.2'  # Standard Python with GIL (cp314)
+          python-version: '3.14t'  # Free-threaded Python (no GIL) - cp314t
           architecture: 'x64'
           allow-prereleases: true
 
@@ -73,15 +73,16 @@ jobs:
           gcc --version | head -1
           g++ --version | head -1
 
-      - name: Verify Python configuration (standard GIL)
+      - name: Verify Python configuration (free-threaded)
         run: |
           python --version
           python -c "import sys; print(f'Python: {sys.version}')"
           python -c "import sys; print(f'ABI tag: {sys.abiflags}')"
           python -c "import sysconfig; print(f'Platform tag: {sysconfig.get_platform()}')"
-          # Verify we have standard Python with GIL enabled (cp314, not cp314t)
-          python -c "import sys; gil_enabled = getattr(sys, '_is_gil_enabled', lambda: True)(); print(f'GIL enabled: {gil_enabled}'); exit(0 if gil_enabled else 1)"
-          echo "✓ Confirmed: Building for standard Python with GIL (cp314)"
+          # Verify we have free-threaded Python (no GIL) - should show 't' in abiflags
+          python -c "import sys; print(f'ABI flags: {sys.abiflags}')"
+          python -c "import sys; gil_disabled = not getattr(sys, '_is_gil_enabled', lambda: True)(); print(f'Free-threaded (GIL disabled): {gil_disabled}'); exit(0 if gil_disabled else 1)"
+          echo "✓ Confirmed: Building for free-threaded Python (cp314t)"
 
       - name: Install build dependencies
         run: |
@@ -92,6 +93,9 @@ jobs:
         run: |
           git clone --recursive https://github.com/cupy/cupy.git
           cd cupy
+          # CuPy v13.x does NOT support Python 3.14
+          # Python 3.14 support was added in CuPy v14.0.0
+          # Using v14.0.0rc1 until stable v14.0.0 is released
           git checkout v${{ inputs.cupy_version || '14.0.0rc1' }} || git checkout main
           git submodule update --init --recursive
           echo "Building from commit: $(git rev-parse HEAD)"
@@ -150,16 +154,18 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: cupy-cuda13x-v${{ inputs.cupy_version || '14.0.0rc1' }}-py314-torch${{ inputs.pytorch_version || '2.10.0' }}-cu130
-          name: CuPy-CUDA13x v${{ inputs.cupy_version || '14.0.0rc1' }} Wheel for Python ${{ env.PYTHON_VERSION }} + PyTorch ${{ inputs.pytorch_version || '2.10.0' }} + CUDA ${{ env.CUDA_VERSION }}
+          tag_name: cupy-cuda13x-v${{ inputs.cupy_version || '14.0.0rc1' }}-py314t-torch${{ inputs.pytorch_version || '2.10.0' }}-cu130
+          name: CuPy-CUDA13x v${{ inputs.cupy_version || '14.0.0rc1' }} Wheel for Python ${{ env.PYTHON_VERSION }} (Free-threaded) + PyTorch ${{ inputs.pytorch_version || '2.10.0' }} + CUDA ${{ env.CUDA_VERSION }}
           body: |
             Built with:
-            - Python: ${{ env.PYTHON_VERSION }}
+            - Python: ${{ env.PYTHON_VERSION }} (Free-threaded, no GIL - cp314t)
             - CUDA: ${{ env.CUDA_VERSION }}
             - PyTorch: ${{ inputs.pytorch_version || '2.10.0' }} (for compatibility)
             - CUDA Arch: ${{ env.TORCH_CUDA_ARCH_LIST }}
 
             ## Installation
+
+            **Note:** This wheel is built for free-threaded Python 3.14 (cp314t). You need Python 3.14t installed.
 
             ```bash
             pip install ${{ steps.wheel_name.outputs.wheel_name }}
@@ -168,13 +174,13 @@ jobs:
             Or directly from this release:
 
             ```bash
-            pip install https://github.com/${{ github.repository }}/releases/download/cupy-cuda13x-v${{ inputs.cupy_version || '14.0.0rc1' }}-py314-torch${{ inputs.pytorch_version || '2.10.0' }}-cu130/${{ steps.wheel_name.outputs.wheel_name }}
+            pip install https://github.com/${{ github.repository }}/releases/download/cupy-cuda13x-v${{ inputs.cupy_version || '14.0.0rc1' }}-py314t-torch${{ inputs.pytorch_version || '2.10.0' }}-cu130/${{ steps.wheel_name.outputs.wheel_name }}
             ```
 
             ## Notes
 
             CuPy is a NumPy/SciPy-compatible array library for GPU-accelerated computing with Python.
-            This wheel is built for CUDA ${{ env.CUDA_VERSION }} and is compatible with Python ${{ env.PYTHON_VERSION }}.
+            This wheel is built for **free-threaded Python 3.14t** (experimental, no GIL) with CUDA ${{ env.CUDA_VERSION }}.
           files: ${{ steps.wheel_name.outputs.wheel_path }}
           draft: false
           prerelease: false
@@ -185,6 +191,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cupy-cuda13x-py${{ env.PYTHON_VERSION }}-cu${{ env.CUDA_VERSION }}
+          name: cupy-cuda13x-py314t-cu${{ env.CUDA_VERSION }}
           path: ${{ steps.wheel_name.outputs.wheel_path }}
           retention-days: 30
