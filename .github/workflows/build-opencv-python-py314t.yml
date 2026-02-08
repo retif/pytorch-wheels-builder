@@ -114,6 +114,18 @@ jobs:
           git submodule update --init --recursive
           echo "Building from commit: $(git rev-parse HEAD)"
 
+      - name: Clone opencv_contrib repository (required for CUDA support)
+        run: |
+          # Clone opencv_contrib - required for cudev module when building with CUDA
+          git clone https://github.com/opencv/opencv_contrib.git
+          cd opencv_contrib
+          # Get the corresponding opencv version from opencv-python/opencv submodule
+          OPENCV_VERSION=$(cd ../opencv-python/opencv && git describe --tags --always)
+          echo "OpenCV version: $OPENCV_VERSION"
+          # Try to checkout the same version/tag, fall back to master if not found
+          git checkout "$OPENCV_VERSION" 2>/dev/null || git checkout master
+          echo "Building opencv_contrib from commit: $(git rev-parse HEAD)"
+
       - name: Patch setup.py for version metadata
         run: |
           cd opencv-python
@@ -139,8 +151,8 @@ jobs:
       - name: Build opencv-python wheel
         run: |
           cd opencv-python
-          export CMAKE_ARGS="-DWITH_CUDA=ON -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-13.0 -DCUDA_ARCH_BIN=${{ env.TORCH_CUDA_ARCH_LIST }} -DWITH_CUBLAS=ON -DWITH_CUDNN=OFF"
-          export ENABLE_CONTRIB=0
+          export CMAKE_ARGS="-DWITH_CUDA=ON -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-13.0 -DCUDA_ARCH_BIN=${{ env.TORCH_CUDA_ARCH_LIST }} -DWITH_CUBLAS=ON -DWITH_CUDNN=OFF -DOPENCV_EXTRA_MODULES_PATH=../opencv_contrib/modules"
+          export ENABLE_CONTRIB=1
           export ENABLE_HEADLESS=0
           python setup.py bdist_wheel
         env:
