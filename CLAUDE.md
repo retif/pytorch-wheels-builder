@@ -26,11 +26,9 @@ This repository builds custom binary wheels for Python 3.13/3.14 + PyTorch 2.10.
 # For PyTorch-dependent packages:
 {package}-v{version}-py{313|314|314t}-torch{pytorch_version}-cu130
 
-# For CUDA packages without PyTorch (opencv-python):
-{package}-v{version}-py{314t}-cu130
-
-# For CPU-only packages (llvmlite):
-{package}-v{version}-py{314t}-llvm{llvm_version}
+# For CPU-only packages (llvmlite, opencv-python):
+{package}-v{version}-py{314t}-llvm{llvm_version}  # llvmlite
+{package}-v{version}-py{314t}  # opencv-python
 ```
 
 Examples:
@@ -39,7 +37,7 @@ Examples:
 - `sageattention-v2.2.0-py313-torch2.10.0-cu130`
 - `cupy-cuda13x-v13.6.0-py314-torch2.10.0-cu130`
 - `cupy-cuda13x-v14.0.0rc1-py314t-torch2.10.0-cu130` (free-threaded)
-- `opencv-python-v4.11.0.92-py314t-cu130` (free-threaded, no PyTorch)
+- `opencv-python-v4.11.0.92-py314t` (free-threaded, CPU-only)
 - `llvmlite-v0.44.0-py314t-llvm15` (free-threaded, CPU-only)
 
 ## Release Title Format
@@ -48,17 +46,15 @@ Examples:
 # For PyTorch-dependent packages:
 {Package} v{version} Wheel for Python {3.13|3.14|3.14t} + PyTorch {version} + CUDA 13.0
 
-# For CUDA packages without PyTorch:
-{Package} v{version} Wheel for Python {3.14t} (Free-threaded) + CUDA 13.0
-
 # For CPU-only packages:
-{Package} v{version} Wheel for Python {3.14t} (Free-threaded) + LLVM {version}
+{Package} v{version} Wheel for Python {3.14t} (Free-threaded) + LLVM {version}  # llvmlite
+{Package} v{version} Wheel for Python {3.14t} (Free-threaded)  # opencv-python
 ```
 
 Examples:
 - `SageAttention v2.2.0 Wheel for Python 3.13 + PyTorch 2.10.0 + CUDA 13.0`
 - `CuPy-CUDA13x v14.0.0rc1 Wheel for Python 3.14t (Free-threaded) + PyTorch 2.10.0 + CUDA 13.0`
-- `OpenCV-Python v4.11.0.92 Wheel for Python 3.14t (Free-threaded) + CUDA 13.0`
+- `OpenCV-Python v4.11.0.92 Wheel for Python 3.14t (Free-threaded)`
 - `llvmlite v0.44.0 Wheel for Python 3.14t (Free-threaded) + LLVM 15`
 
 ## Triggering Builds
@@ -137,16 +133,18 @@ CuPy has different version requirements for different Python versions:
 OpenCV-Python is different from the other packages:
 
 1. **No PyTorch Dependency**: OpenCV is a computer vision library that doesn't depend on PyTorch
-   - Release tags use format: `opencv-python-v{version}-py314t-cu130` (no torch version)
-   - Still benefits from CUDA acceleration for GPU operations
+   - Release tags use format: `opencv-python-v{version}-py314t` (no torch/cuda version)
+   - CPU-only build for simplicity
 2. **Python 3.14t Only**: Currently only building for free-threaded Python 3.14t
    - Standard Python 3.13/3.14 wheels are available from PyPI
    - Free-threaded builds are experimental and not yet available upstream
 3. **Build System**: Uses scikit-build with CMake, not setuptools
    - Requires system dependencies (GTK, video codecs, etc.)
    - Build takes longer than pure Python packages (~30-45 minutes)
-4. **CUDA Support**: Built with `-DWITH_CUDA=ON` for GPU acceleration
-   - CUDA ops available via `cv2.cuda` module
+4. **CPU-Only Build**: Built with `-DWITH_CUDA=OFF` for compatibility
+   - CUDA 13.0's C++17 requirements complicate free-threaded builds
+   - Free-threaded Python's main benefit is CPU parallelism anyway
+   - For GPU acceleration, use standard Python 3.14 with CUDA-enabled opencv-python
 
 ## llvmlite Special Notes
 
@@ -173,7 +171,7 @@ llvmlite is different from the other packages:
 - **Flash Attention**: `flash_attn-2.8.2-cp313-cp313-linux_x86_64.whl` (no metadata - not patched)
 - **CuPy-CUDA13x**: `cupy_cuda13x-13.6.0+cu130sm89-cp313-cp313-linux_x86_64.whl`
 - **CuPy-CUDA13x (py314t)**: `cupy_cuda13x-14.0.0rc1+cu130sm89-cp314t-cp314t-linux_x86_64.whl`
-- **OpenCV-Python (py314t)**: `opencv_python-4.11.0.92+cu130sm89-cp314t-cp314t-linux_x86_64.whl`
+- **OpenCV-Python (py314t)**: `opencv_python-4.11.0.92-cp314t-cp314t-linux_x86_64.whl` (no version metadata - CPU-only)
 - **llvmlite (py314t)**: `llvmlite-0.44.0+llvm15-cp314t-cp314t-linux_x86_64.whl`
 
 Nunchaku, SageAttention, CuPy, OpenCV-Python, and llvmlite have version injection patches in their workflows that add comprehensive metadata:
