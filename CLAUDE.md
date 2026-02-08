@@ -40,7 +40,7 @@ Examples:
 - `cupy-cuda13x-v13.6.0-py314-torch2.10.0-cu130`
 - `cupy-cuda13x-v14.0.0rc1-py314t-torch2.10.0-cu130` (free-threaded)
 - `opencv-python-v4.11.0.92-py314t-cu130` (free-threaded, no PyTorch)
-- `llvmlite-v0.44.0-py314t-llvm14` (free-threaded, CPU-only)
+- `llvmlite-v0.44.0-py314t-llvm15` (free-threaded, CPU-only)
 
 ## Release Title Format
 
@@ -59,7 +59,7 @@ Examples:
 - `SageAttention v2.2.0 Wheel for Python 3.13 + PyTorch 2.10.0 + CUDA 13.0`
 - `CuPy-CUDA13x v14.0.0rc1 Wheel for Python 3.14t (Free-threaded) + PyTorch 2.10.0 + CUDA 13.0`
 - `OpenCV-Python v4.11.0.92 Wheel for Python 3.14t (Free-threaded) + CUDA 13.0`
-- `llvmlite v0.44.0 Wheel for Python 3.14t (Free-threaded) + LLVM 14`
+- `llvmlite v0.44.0 Wheel for Python 3.14t (Free-threaded) + LLVM 15`
 
 ## Triggering Builds
 
@@ -156,9 +156,10 @@ llvmlite is different from the other packages:
    - Release tags use format: `llvmlite-v{version}-py314t-llvm{version}` (no CUDA/PyTorch)
    - Required by Numba and other JIT compilation frameworks
 2. **LLVM Dependency**: Requires LLVM development libraries
-   - Currently uses LLVM 14 (compatible with llvmlite 0.44.x)
-   - Version metadata: `+llvm14` injected into wheel version
-3. **Python 3.14t Only**: Currently only building for free-threaded Python 3.14t
+   - Currently uses LLVM 15 (required for llvmlite 0.44.0+)
+   - Version metadata: `+llvm15` injected into wheel version
+3. **Python 3.14t Compatibility**: Special patches required for free-threaded Python
+   - Patches `spawn(dry_run=...)` calls (Python 3.14 removed dry_run parameter)
    - Standard Python 3.13/3.14 wheels are available from PyPI
    - Free-threaded builds are needed for Numba compatibility
 4. **Build System**: Uses setuptools with custom build extensions
@@ -173,7 +174,7 @@ llvmlite is different from the other packages:
 - **CuPy-CUDA13x**: `cupy_cuda13x-13.6.0+cu130sm89-cp313-cp313-linux_x86_64.whl`
 - **CuPy-CUDA13x (py314t)**: `cupy_cuda13x-14.0.0rc1+cu130sm89-cp314t-cp314t-linux_x86_64.whl`
 - **OpenCV-Python (py314t)**: `opencv_python-4.11.0.92+cu130sm89-cp314t-cp314t-linux_x86_64.whl`
-- **llvmlite (py314t)**: `llvmlite-0.44.0+llvm14-cp314t-cp314t-linux_x86_64.whl`
+- **llvmlite (py314t)**: `llvmlite-0.44.0+llvm15-cp314t-cp314t-linux_x86_64.whl`
 
 Nunchaku, SageAttention, CuPy, OpenCV-Python, and llvmlite have version injection patches in their workflows that add comprehensive metadata:
 - **Format**: `+cu{CUDA_VER}sm{GPU_ARCH}torch{PYTORCH_VER}` (for PyTorch-dependent packages)
@@ -183,7 +184,7 @@ Nunchaku, SageAttention, CuPy, OpenCV-Python, and llvmlite have version injectio
   - `cu130` = CUDA 13.0
   - `sm89` = SM 8.9 GPU architecture (RTX 4090)
   - `torch2.10.0` = PyTorch version (if applicable)
-- **Example**: `+llvm14` = LLVM 14
+- **Example**: `+llvm15` = LLVM 15
 - **Note**: System architecture (x86_64) is automatically included in the platform tag at the end of the wheel name
 - **Free-threaded Python**: Wheels use `cp314t` tag instead of `cp314` to indicate GIL-free Python
 
