@@ -87,8 +87,11 @@ jobs:
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip wheel setuptools
-          # Note: fastrlock doesn't support free-threaded Python yet, so we skip it
-          # CuPy will build without fastrlock (it's an optional optimization)
+          # TODO: Re-enable fastrlock when it supports free-threaded Python (cp314t)
+          # Currently skipped due to Cython compatibility issues with GIL-free Python
+          # Track: https://github.com/scoder/fastrlock/issues
+          # When available, add back: pip install "cython>=3.0" fastrlock numpy
+          # For now: CuPy builds without fastrlock (it's an optional performance optimization)
           pip install "cython>=3.0" numpy
 
       - name: Clone CuPy repository
