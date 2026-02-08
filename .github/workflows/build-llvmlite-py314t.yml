@@ -77,9 +77,23 @@ jobs:
           git checkout v${{ inputs.llvmlite_version || '0.44.0' }} || git checkout main
           echo "Building from commit: $(git rev-parse HEAD)"
 
-      - name: Patch setup.py for version metadata
+      - name: Patch llvmlite for Python 3.14t compatibility and version metadata
         run: |
           cd llvmlite
+
+          # Fix Python 3.14t compatibility: Remove dry_run parameter from spawn() calls
+          # This fixes: TypeError: spawn() got an unexpected keyword argument 'dry_run'
+          echo "Patching ffi/build.py for Python 3.14t compatibility..."
+          if [ -f "ffi/build.py" ]; then
+            # Remove dry_run parameter from spawn() calls
+            sed -i 's/spawn(\(.*\), dry_run=self\.dry_run)/spawn(\1)/g' ffi/build.py
+            echo "✓ Patched ffi/build.py"
+          fi
+
+          # Also patch any other files that might use spawn with dry_run
+          find . -name "*.py" -type f -exec sed -i 's/spawn(\(.*\), dry_run=self\.dry_run)/spawn(\1)/g' {} \;
+          find . -name "*.py" -type f -exec sed -i 's/spawn(\(.*\), dry_run=[^)]*)/spawn(\1)/g' {} \;
+
           # Inject LLVM version into package version string
           LLVM_VERSION="${{ env.LLVM_VERSION }}"
           VERSION_SUFFIX="+llvm${LLVM_VERSION}"
