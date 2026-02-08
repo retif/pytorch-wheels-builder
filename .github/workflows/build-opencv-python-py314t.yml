@@ -150,8 +150,12 @@ jobs:
 
       - name: Build opencv-python wheel
         run: |
+          # Set absolute path to opencv_contrib modules for CUDA support
+          OPENCV_CONTRIB_PATH="$(pwd)/opencv_contrib/modules"
+          echo "OpenCV contrib modules path: $OPENCV_CONTRIB_PATH"
+
           cd opencv-python
-          export CMAKE_ARGS="-DWITH_CUDA=ON -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-13.0 -DCUDA_ARCH_BIN=${{ env.TORCH_CUDA_ARCH_LIST }} -DWITH_CUBLAS=ON -DWITH_CUDNN=OFF -DOPENCV_EXTRA_MODULES_PATH=../opencv_contrib/modules"
+          export CMAKE_ARGS="-DWITH_CUDA=ON -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-13.0 -DCUDA_ARCH_BIN=${{ env.TORCH_CUDA_ARCH_LIST }} -DWITH_CUBLAS=ON -DWITH_CUDNN=OFF -DOPENCV_EXTRA_MODULES_PATH=$OPENCV_CONTRIB_PATH"
           export ENABLE_CONTRIB=1
           export ENABLE_HEADLESS=0
           python setup.py bdist_wheel
