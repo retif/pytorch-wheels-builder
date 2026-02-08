@@ -98,24 +98,24 @@ jobs:
 
       - name: Build llvmlite wheel
         run: |
-          cd llvmlite
           export LLVM_CONFIG=/usr/bin/llvm-config-${{ env.LLVM_VERSION }}
-          python setup.py bdist_wheel
+          # Use pip wheel instead of setup.py bdist_wheel for better Python 3.14t compatibility
+          pip wheel --no-deps --wheel-dir=./dist -v ./llvmlite
 
       - name: List built wheels
         run: |
-          ls -lh llvmlite/dist/
+          ls -lh dist/
 
       - name: Test wheel installation
         run: |
-          pip install llvmlite/dist/*.whl
+          pip install dist/*.whl
           python -c "import llvmlite; print(f'llvmlite version: {llvmlite.__version__}')"
           python -c "import llvmlite.binding as llvm; llvm.initialize(); llvm.initialize_native_target(); llvm.initialize_native_asmprinter(); print('llvmlite binding initialized successfully')"
 
       - name: Get wheel name
         id: wheel_name
         run: |
-          WHEEL_PATH=$(ls llvmlite/dist/*.whl)
+          WHEEL_PATH=$(ls dist/*.whl)
           WHEEL_NAME=$(basename $WHEEL_PATH)
           echo "wheel_name=$WHEEL_NAME" >> $GITHUB_OUTPUT
           echo "wheel_path=$WHEEL_PATH" >> $GITHUB_OUTPUT
